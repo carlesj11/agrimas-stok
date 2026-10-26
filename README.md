@@ -13,7 +13,8 @@ Aplikasi web manajemen stok untuk beberapa anak perusahaan. Setiap perusahaan pu
 | 1 | Desain data dan aturan stok | Selesai |
 | 2 | Login, multi-perusahaan, gudang, master data (barang, supplier, customer, sales), user | Selesai |
 | 3 | PO, surat jalan masuk, faktur supplier, faktur penjualan, surat jalan keluar, retur, stok awal/opname, pindah gudang, kartu stok, HPP rata-rata | Selesai |
-| 4 | Laporan, export Excel/PDF, hosting | Berikutnya |
+| 4 | Laporan stok, penjualan, pembelian, PO belum terpenuhi; export Excel dan cetak/PDF | Selesai |
+| Berikutnya | Migrasi data dari SQL Server, menu keuangan (hutang/piutang) | Belum |
 
 ## Hak akses
 
@@ -35,7 +36,7 @@ Aturan ini dijaga di database (Row Level Security), bukan hanya di tampilan.
 ## Setup Supabase (sekali saja)
 
 1. **Matikan konfirmasi email.** Supabase → Authentication → Sign In / Providers → Email → matikan **Confirm email** → Save. Login memakai username, jadi tidak ada email sungguhan yang bisa dikonfirmasi.
-2. **Buat struktur database.** Supabase → SQL Editor → New query → tempel seluruh isi [`supabase/001_fondasi.sql`](supabase/001_fondasi.sql) → Run. Script ini juga membuat perusahaan pertama, CV Prima Agro Perkasa (PAP). Lalu ulangi dengan [`supabase/002_transaksi.sql`](supabase/002_transaksi.sql) di query baru. Jalankan setiap file sekali saja, berurutan.
+2. **Buat struktur database.** Supabase → SQL Editor → New query → tempel seluruh isi [`supabase/001_fondasi.sql`](supabase/001_fondasi.sql) → Run. Script ini juga membuat perusahaan pertama, CV Prima Agro Perkasa (PAP). Lalu ulangi dengan [`supabase/002_transaksi.sql`](supabase/002_transaksi.sql) dan [`supabase/003_laporan.sql`](supabase/003_laporan.sql), masing-masing di query baru. Jalankan setiap file sekali saja, berurutan.
 3. **Buat akun Owner.** Supabase → Authentication → Users → Add user → Create new user:
    - Email: `<username>@agrimas-stok.app`, misalnya `carles@agrimas-stok.app`
    - Password: bebas (minimal 6 karakter)
@@ -47,6 +48,10 @@ Aturan ini dijaga di database (Row Level Security), bukan hanya di tampilan.
 5. Buka aplikasinya, login dengan username `carles` dan password tadi, lalu pilih perusahaan.
 
 User lain (Admin dan User) dibuat dari dalam aplikasi lewat menu **Pengaturan → User**.
+
+## Hosting gratis (GitHub Pages)
+
+Repo → Settings → Pages → Source: **Deploy from a branch** → Branch `main`, folder `/ (root)` → Save. Setelah sekitar satu menit situs bisa dibuka di `https://carlesj11.github.io/agrimas-stok/`. Setiap perubahan yang masuk ke `main` otomatis ikut terpasang.
 
 ## Menjalankan di komputer sendiri
 
@@ -81,3 +86,4 @@ supabase/*.sql          struktur database, dijalankan berurutan
 - Stok tidak boleh minus. Penjualan, retur pembelian, dan pindah gudang ditolak bila stok di gudang tidak cukup.
 - Dokumen tidak pernah dihapus. Pembatalan membuat baris pembalik di kartu stok.
 - Mengubah tanggal dokumen tidak menghitung ulang HPP mundur.
+- Laporan stok per tanggal menghitung qty dari kartu stok; nilai persediaannya memakai HPP rata-rata saat ini.

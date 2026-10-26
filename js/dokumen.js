@@ -136,7 +136,13 @@ export function bukaDetail({ judul, dok, info, kolom, baris, ringkasan = [], aks
     h('div', { class: 'cetak-ttd' }, h('div', {}, 'Dibuat oleh'), h('div', {}, 'Diterima oleh')),
     h('div', { class: 'form-aksi tanpa-cetak' },
       aksi.filter(Boolean),
-      h('button', { class: 'tombol', onclick: () => window.print() }, 'Cetak')));
+      h('button', {
+        class: 'tombol', onclick: () => {
+          document.body.classList.add('cetak-modal');
+          window.print();
+          document.body.classList.remove('cetak-modal');
+        },
+      }, 'Cetak')));
   return modal(`${judul} ${dok.nomor}`, isi, { lebar: true });
 }
 

@@ -7,10 +7,11 @@ import { halamanPerusahaan, halamanPengguna, halamanPenomoran, gantiPassword } f
 import { halamanPO, halamanSJMasuk, halamanFakturBeli, halamanReturBeli } from './pages/pembelian.js';
 import { halamanFakturJual, halamanSJKeluar, halamanReturJual } from './pages/penjualan.js';
 import { halamanKartuStok, halamanPenyesuaian, halamanTransfer } from './pages/stok.js';
+import { halamanLaporanStok, halamanLaporanPenjualan, halamanLaporanPembelian, halamanLaporanPO } from './pages/laporan.js';
 
 const app = document.getElementById('app');
 
-// Menu samping. "segera" = dikerjakan di tahap berikutnya.
+// Menu samping.
 const MENU = [
   { grup: null, item: [{ rute: 'beranda', label: 'Beranda', render: halamanBeranda }] },
   {
@@ -44,7 +45,14 @@ const MENU = [
       { rute: 'pindah-gudang', label: 'Pindah Gudang', render: halamanTransfer },
     ],
   },
-  { grup: 'Laporan', item: [{ label: 'Laporan', segera: true }] },
+  {
+    grup: 'Laporan', item: [
+      { rute: 'laporan-stok', label: 'Laporan Stok', render: halamanLaporanStok },
+      { rute: 'laporan-penjualan', label: 'Laporan Penjualan', render: halamanLaporanPenjualan },
+      { rute: 'laporan-pembelian', label: 'Laporan Pembelian', render: halamanLaporanPembelian },
+      { rute: 'laporan-po', label: 'PO Belum Terpenuhi', render: halamanLaporanPO },
+    ],
+  },
   {
     grup: 'Pengaturan', item: [
       { rute: 'perusahaan', label: 'Perusahaan', render: halamanPerusahaan, syarat: isOwner },
@@ -150,9 +158,7 @@ function layarAplikasi() {
     if (!item.length) return '';
     return h('div', { class: 'menu-grup' },
       g.grup && h('div', { class: 'menu-judul' }, g.grup),
-      item.map((i) => i.segera
-        ? h('span', { class: 'menu-item menu-segera', title: 'Segera hadir' }, i.label, h('small', {}, 'segera'))
-        : h('a', { class: 'menu-item', href: `#/${i.rute}`, 'data-rute': i.rute }, i.label)));
+      item.map((i) => h('a', { class: 'menu-item', href: `#/${i.rute}`, 'data-rute': i.rute }, i.label)));
   }));
 
   shell.append(header, nav, konten);

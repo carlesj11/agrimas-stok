@@ -89,8 +89,6 @@ input[readonly] { background: var(--latar); }
 .menu-item { display: flex; justify-content: space-between; align-items: center; padding: 7px 10px; border-radius: 6px; color: inherit; text-decoration: none; }
 a.menu-item:hover { background: rgb(255 255 255 / 0.08); }
 a.menu-item.aktif { background: var(--utama); color: #fff; }
-.menu-segera { color: #7f9887; cursor: default; }
-.menu-segera small { font-size: 0.7rem; border: 1px solid #4b6a56; border-radius: 4px; padding: 0 4px; }
 
 .konten { grid-area: konten; padding: 24px; min-width: 0; }
 .kepala-halaman { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
@@ -189,18 +187,25 @@ tbody tr:hover { background: #fafcfa; }
 .dokumen-total dd { margin: 0; font-variant-numeric: tabular-nums; }
 .cetak-kop, .cetak-ttd { display: none; }
 
-/* Cetak: hanya isi dokumen yang tampil */
+/* Cetak: laporan mencetak isi halaman; tombol Cetak di dokumen hanya mencetak dokumennya */
+.saringan-centang { grid-column: auto; font-size: 0.9rem; }
 @media print {
-  body { background: #fff; }
-  body > *:not(.modal-latar) { display: none !important; }
+  @page { margin: 12mm; }
+  body { background: #fff; font-size: 12px; }
+  .menu, .atas, .saringan, .tanpa-cetak, .toast, .info-jumlah, .kepala-halaman { display: none !important; }
+  .shell { display: block; }
+  .konten { padding: 0; }
+  .cetak-kop { display: block; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #000; }
+  body:not(.cetak-modal) .modal-latar { display: none !important; }
+  body.cetak-modal > *:not(.modal-latar) { display: none !important; }
   .modal-latar { position: static; background: none; padding: 0; display: block; }
   .modal { box-shadow: none; width: 100%; padding: 0; }
-  .modal-kepala, .tanpa-cetak, .toast { display: none !important; }
-  .cetak-kop { display: block; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #000; }
+  .modal-kepala { display: none !important; }
   .cetak-ttd { display: flex; justify-content: space-around; margin-top: 48px; }
   .cetak-ttd div { border-top: 1px solid #000; padding-top: 4px; min-width: 160px; text-align: center; margin-top: 56px; }
-  .tabel-wrap { border-color: #000; }
-  th, td { border-color: #999; }
+  .tabel-wrap { border-color: #000; overflow: visible; }
+  th, td { border-color: #999; padding: 5px 8px; }
+  tr { break-inside: avoid; }
 }
 
 /* Layar kecil (HP) */
