@@ -3,7 +3,10 @@ import { state, muatSesi, pilihPerusahaan, isOwner, isKelola } from './state.js'
 import { h, toast } from './ui.js';
 import { halamanBeranda } from './pages/beranda.js';
 import { halamanBarang, halamanSupplier, halamanCustomer, halamanSales, halamanGudang } from './pages/master.js';
-import { halamanPerusahaan, halamanPengguna, gantiPassword } from './pages/pengaturan.js';
+import { halamanPerusahaan, halamanPengguna, halamanPenomoran, gantiPassword } from './pages/pengaturan.js';
+import { halamanPO, halamanSJMasuk, halamanFakturBeli, halamanReturBeli } from './pages/pembelian.js';
+import { halamanFakturJual, halamanSJKeluar, halamanReturJual } from './pages/penjualan.js';
+import { halamanKartuStok, halamanPenyesuaian, halamanTransfer } from './pages/stok.js';
 
 const app = document.getElementById('app');
 
@@ -21,23 +24,24 @@ const MENU = [
   },
   {
     grup: 'Pembelian', item: [
-      { label: 'Purchase Order', segera: true },
-      { label: 'Surat Jalan Masuk', segera: true },
-      { label: 'Faktur Supplier', segera: true },
-      { label: 'Retur Pembelian', segera: true },
+      { rute: 'po', label: 'Purchase Order', render: halamanPO },
+      { rute: 'sj-masuk', label: 'Surat Jalan Masuk', render: halamanSJMasuk },
+      { rute: 'faktur-supplier', label: 'Faktur Supplier', render: halamanFakturBeli },
+      { rute: 'retur-pembelian', label: 'Retur Pembelian', render: halamanReturBeli },
     ],
   },
   {
     grup: 'Penjualan', item: [
-      { label: 'Faktur Penjualan', segera: true },
-      { label: 'Surat Jalan Keluar', segera: true },
-      { label: 'Retur Penjualan', segera: true },
+      { rute: 'faktur-penjualan', label: 'Faktur Penjualan', render: halamanFakturJual },
+      { rute: 'sj-keluar', label: 'Surat Jalan Keluar', render: halamanSJKeluar },
+      { rute: 'retur-penjualan', label: 'Retur Penjualan', render: halamanReturJual },
     ],
   },
   {
     grup: 'Stok', item: [
-      { label: 'Kartu Stok', segera: true },
-      { label: 'Stok Awal & Penyesuaian', segera: true },
+      { rute: 'kartu-stok', label: 'Kartu Stok', render: halamanKartuStok },
+      { rute: 'penyesuaian', label: 'Stok Awal & Penyesuaian', render: halamanPenyesuaian },
+      { rute: 'pindah-gudang', label: 'Pindah Gudang', render: halamanTransfer },
     ],
   },
   { grup: 'Laporan', item: [{ label: 'Laporan', segera: true }] },
@@ -45,6 +49,7 @@ const MENU = [
     grup: 'Pengaturan', item: [
       { rute: 'perusahaan', label: 'Perusahaan', render: halamanPerusahaan, syarat: isOwner },
       { rute: 'pengguna', label: 'User', render: halamanPengguna, syarat: isKelola },
+      { rute: 'penomoran', label: 'Format Penomoran', render: halamanPenomoran, syarat: isKelola },
     ],
   },
 ];

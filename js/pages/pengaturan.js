@@ -143,3 +143,61 @@ export function gantiPassword() {
     },
   });
 }
+
+const JENIS_NOMOR = [
+  { jenis: 'PO', label: 'Purchase Order', bawaan: 'PO/{PRSH}/{YYYY}/{MM}/{NNNN}' },
+  { jenis: 'FJ', label: 'Faktur Penjualan', bawaan: 'FJ/{PRSH}/{GDG}/{YYYY}/{MM}/{NNNN}' },
+  { jenis: 'SJK', label: 'Surat Jalan Keluar', bawaan: 'SJK/{PRSH}/{GDG}/{YYYY}/{MM}/{NNNN}' },
+  { jenis: 'RJ', label: 'Retur Penjualan', bawaan: 'RJ/{PRSH}/{GDG}/{YYYY}/{MM}/{NNNN}' },
+  { jenis: 'RB', label: 'Retur Pembelian', bawaan: 'RB/{PRSH}/{YYYY}/{MM}/{NNNN}' },
+  { jenis: 'PS', label: 'Penyesuaian Stok', bawaan: 'PS/{PRSH}/{YYYY}/{MM}/{NNNN}' },
+  { jenis: 'TG', label: 'Pindah Gudang', bawaan: 'TG/{PRSH}/{YYYY}/{MM}/{NNNN}' },
+];
+
+function contohNomor(format) {
+  const d = new Date();
+  return format
+    .replace('{PRSH}', state.perusahaan.kode).replace('{GDG}', 'GU')
+    .replace('{YYYY}', d.getFullYear()).replace('{YY}', String(d.getFullYear()).slice(2))
+    .replace('{MM}', String(d.getMonth() + 1).padStart(2, '0'))
+    .replace(/\{(N+)\}/, (_, n) => '1'.padStart(n.length, '0'));
+}
+
+export async function halamanPenomoran(konten) {
+  const tersimpan = await q(sb.from('penomoran').select('*').eq('perusahaan_id', pid()));
+  const peta = Object.fromEntries(tersimpan.map((r) => [r.jenis, r.format]));
+  const baris = JENIS_NOMOR.map((j) => {
+    const contoh = h('code');
+    const input = h('input', { value: peta[j.jenis] ?? j.bawaan, 'aria-label': `Format ${j.label}` });
+    const segarkan = () => { contoh.textContent = contohNomor(input.value); };
+    input.addEventListener('input', segarkan);
+    segarkan();
+    return { ...j, input, contoh };
+  });
+
+  const simpan = async () => {
+    for (const b of baris) {
+      if (!/\{N+\}/.test(b.input.value)) { toast(`Format ${b.label} harus memuat nomor urut, misalnya {NNNN}.`, 'error'); return; }
+    }
+    try {
+      await q(sb.from('penomoran').upsert(baris.map((b) => ({ perusahaan_id: pid(), jenis: b.jenis, format: b.input.value.trim() }))));
+      toast('Format penomoran tersimpan.');
+    } catch (e) { toast(e.message, 'error'); }
+  };
+
+  konten.replaceChildren(
+    h('div', { class: 'kepala-halaman' },
+      h('div', {}, h('h1', {}, 'Format Penomoran'),
+        h('p', { class: 'deskripsi' }, `Nomor otomatis dokumen untuk ${state.perusahaan.nama}.`)),
+      h('button', { class: 'tombol tombol-utama', onclick: simpan }, 'Simpan')),
+    tabel([
+      { label: 'Dokumen', isi: (b) => b.label },
+      { label: 'Format', isi: (b) => b.input },
+      { label: 'Contoh', isi: (b) => b.contoh },
+    ], baris),
+    h('p', { class: 'catatan' },
+      'Kode yang bisa dipakai: {PRSH} singkatan perusahaan, {GDG} kode gudang asal barang, {YYYY} tahun, {YY} tahun 2 digit, ',
+      '{MM} bulan, {NNNN} nomor urut (jumlah N = jumlah digit). Nomor urut mulai dari 1 lagi setiap bulan atau gudang berganti, ',
+      'sesuai kode yang dipakai. Nomor surat jalan masuk dan faktur supplier memakai nomor dari supplier. ',
+      'Saat membuat faktur penjualan, nomor tetap bisa diketik manual (misalnya untuk faktur tulis).'));
+}
