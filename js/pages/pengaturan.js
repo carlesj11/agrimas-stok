@@ -13,8 +13,33 @@ export async function halamanPerusahaan(konten) {
       { label: 'Nama', isi: (r) => r.nama },
       { label: 'Telepon', isi: (r) => r.telepon ?? '' },
       { label: 'Status', isi: (r) => lencana(r.aktif) },
-      { label: '', kelas: 'kol-aksi', isi: (r) => h('button', { class: 'tombol tombol-kecil', onclick: () => formulir(r) }, 'Ubah') },
+      { label: 'Logo', isi: (r) => (r.logo ? h('img', { src: r.logo, alt: '', class: 'logo-kecil' }) : '-') },
+      {
+        label: '', kelas: 'kol-aksi', isi: (r) => h('div', { class: 'aksi-baris' },
+          h('button', { class: 'tombol tombol-kecil', onclick: () => formulir(r) }, 'Ubah'),
+          h('button', { class: 'tombol tombol-kecil', onclick: () => gantiLogo(r) }, 'Logo')),
+      },
     ], daftar));
+  };
+
+  // Logo diperkecil di browser lalu disimpan sebagai data URL, jadi tidak perlu tempat simpan file.
+  const gantiLogo = (r) => {
+    const pilih = h('input', { type: 'file', accept: 'image/png,image/jpeg' });
+    pilih.addEventListener('change', async () => {
+      const berkas = pilih.files[0];
+      if (!berkas) return;
+      try {
+        const gambar = await createImageBitmap(berkas);
+        const skala = Math.min(1, 300 / Math.max(gambar.width, gambar.height));
+        const kanvas = h('canvas', { width: Math.round(gambar.width * skala), height: Math.round(gambar.height * skala) });
+        kanvas.getContext('2d').drawImage(gambar, 0, 0, kanvas.width, kanvas.height);
+        await q(sb.from('perusahaan').update({ logo: kanvas.toDataURL('image/png') }).eq('id', r.id));
+        toast('Logo tersimpan. Logo ini tampil di cetakan faktur penjualan.');
+        await muatSesi();
+        await muat();
+      } catch (e) { toast(e.message, 'error'); }
+    });
+    pilih.click();
   };
 
   const formulir = (r) => bukaForm({
@@ -26,10 +51,12 @@ export async function halamanPerusahaan(konten) {
       { key: 'alamat', label: 'Alamat', type: 'textarea', lebar: true },
       { key: 'telepon', label: 'Telepon' },
       { key: 'npwp', label: 'NPWP' },
+      { key: 'catatan_faktur', label: 'Catatan di bawah faktur penjualan', type: 'textarea', lebar: true, hint: 'Tampil sebagai "Perhatian" di cetakan faktur. Kosongkan bila tidak perlu.' },
       { key: 'aktif', label: 'Aktif', type: 'checkbox' },
     ],
     onSimpan: async (data) => {
       data.kode = data.kode.toUpperCase();
+      data.catatan_faktur ||= null;
       if (r) await q(sb.from('perusahaan').update(data).eq('id', r.id));
       else await q(sb.from('perusahaan').insert(data));
       toast('Perusahaan tersimpan.');

@@ -14,6 +14,7 @@ Aplikasi web manajemen stok untuk beberapa anak perusahaan. Setiap perusahaan pu
 | 2 | Login, multi-perusahaan, gudang, master data (barang, supplier, customer, sales), user | Selesai |
 | 3 | PO, surat jalan masuk, faktur supplier, faktur penjualan, surat jalan keluar, retur, stok awal/opname, pindah gudang, kartu stok, HPP rata-rata | Selesai |
 | 4 | Laporan stok, penjualan, pembelian, PO belum terpenuhi; export Excel dan cetak/PDF | Selesai |
+| 4b | Cetakan faktur penjualan setengah A4 (21 × 14,875 cm) dengan logo dan catatan per perusahaan | Selesai |
 | Berikutnya | Migrasi data dari SQL Server, menu keuangan (hutang/piutang) | Belum |
 
 ## Hak akses
@@ -36,7 +37,7 @@ Aturan ini dijaga di database (Row Level Security), bukan hanya di tampilan.
 ## Setup Supabase (sekali saja)
 
 1. **Matikan konfirmasi email.** Supabase → Authentication → Sign In / Providers → Email → matikan **Confirm email** → Save. Login memakai username, jadi tidak ada email sungguhan yang bisa dikonfirmasi.
-2. **Buat struktur database.** Supabase → SQL Editor → New query → tempel seluruh isi [`supabase/001_fondasi.sql`](supabase/001_fondasi.sql) → Run. Script ini juga membuat perusahaan pertama, CV Prima Agro Perkasa (PAP). Lalu ulangi dengan [`supabase/002_transaksi.sql`](supabase/002_transaksi.sql) dan [`supabase/003_laporan.sql`](supabase/003_laporan.sql), masing-masing di query baru. Jalankan setiap file sekali saja, berurutan.
+2. **Buat struktur database.** Supabase → SQL Editor → New query → tempel seluruh isi [`supabase/001_fondasi.sql`](supabase/001_fondasi.sql) → Run. Script ini juga membuat perusahaan pertama, CV Prima Agro Perkasa (PAP). Lalu ulangi dengan [`supabase/002_transaksi.sql`](supabase/002_transaksi.sql), [`supabase/003_laporan.sql`](supabase/003_laporan.sql), dan [`supabase/004_faktur.sql`](supabase/004_faktur.sql), masing-masing di query baru. Jalankan setiap file sekali saja, berurutan.
 3. **Buat akun Owner.** Supabase → Authentication → Users → Add user → Create new user:
    - Email: `<username>@agrimas-stok.app`, misalnya `carles@agrimas-stok.app`
    - Password: bebas (minimal 6 karakter)
@@ -87,3 +88,7 @@ supabase/*.sql          struktur database, dijalankan berurutan
 - Dokumen tidak pernah dihapus. Pembatalan membuat baris pembalik di kartu stok.
 - Mengubah tanggal dokumen tidak menghitung ulang HPP mundur.
 - Laporan stok per tanggal menghitung qty dari kartu stok; nilai persediaannya memakai HPP rata-rata saat ini.
+
+## Cetakan faktur penjualan
+
+Tombol **Cetak** di faktur penjualan mencetak lembar setengah A4 (21 × 14,875 cm) dengan bentuk faktur lama. Logo dan teks "Perhatian" di bawahnya diatur per perusahaan di **Pengaturan → Perusahaan** (tombol **Logo** dan **Ubah**). Di jendela cetak, pilih printer dan biarkan ukuran kertas mengikuti dokumen; untuk printer dot matrix, atur ukuran kertas 21 × 14,875 cm di pengaturan printer.

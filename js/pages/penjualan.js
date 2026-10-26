@@ -5,6 +5,7 @@ import {
   halamanDaftar, bukaDetail, aksiKelola, formDokumen, isian, pilihan, editorBaris, kotakTotal, muatMaster,
   namaKode, opsi, rpc, hariIni, tambahHari, tgl, stokGudang,
 } from '../dokumen.js';
+import { cetakFakturJual } from '../cetak-faktur.js';
 
 const satuan = (m, id) => m.barangMap[id]?.satuan ?? '';
 const namaBarang = (m, id) => namaKode(m.barangMap[id]);
@@ -100,6 +101,7 @@ async function detailFakturJual(dok, ctx) {
       Number(dok.ppn_total) && ['PPN', rupiah(dok.ppn_total)],
       ['Total', rupiah(dok.total), true],
     ],
+    cetak: () => cetakFakturJual(dok, baris, ctx),
     aksi: [
       dok.status === 'aktif' && h('button', { class: 'tombol', onclick: () => { tutup(); formSJKeluar(ctx, dok.id); } }, 'Buat Surat Jalan'),
       dok.status === 'aktif' && h('button', { class: 'tombol', onclick: () => { tutup(); formReturJual(ctx, dok.id); } }, 'Retur'),

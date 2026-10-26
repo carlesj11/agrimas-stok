@@ -187,6 +187,46 @@ tbody tr:hover { background: #fafcfa; }
 .dokumen-total dd { margin: 0; font-variant-numeric: tabular-nums; }
 .cetak-kop, .cetak-ttd { display: none; }
 
+/* Lembar cetak khusus (faktur penjualan setengah A4). Hanya tampil saat dicetak. */
+.lembar-cetak { display: none; }
+.lembar-faktur {
+  color: #000; background: #fff;
+  font-family: Tahoma, Verdana, "DejaVu Sans", sans-serif; font-size: 9pt; line-height: 1.35;
+}
+.lembar-faktur table { border-collapse: collapse; }
+.lembar-faktur td, .lembar-faktur th { padding: 0 3px; border: none; background: none; font-size: inherit; color: inherit; white-space: normal; vertical-align: top; }
+.lf-kepala { display: grid; grid-template-columns: 1fr 34mm 1fr; align-items: stretch; gap: 0; }
+.lf-kotak { border: 1px solid #000; padding: 1px 3px; }
+.lf-kotak td { padding: 0; }
+.lf-label { width: 1%; white-space: nowrap; padding-right: 2mm !important; }
+.lf-judul { font-weight: 700; }
+.lf-judul.tengah { text-align: center; border-bottom: 1px solid #000; margin: -1px -3px 1px; padding: 1px 3px; }
+.lf-logo { display: flex; align-items: center; justify-content: center; }
+.lf-logo img { max-height: 19mm; max-width: 30mm; }
+.lf-batal { text-align: center; font-weight: 700; font-size: 14pt; letter-spacing: 0.3em; margin-top: 2mm; }
+.lf-rincian { width: 100%; margin-top: 2mm; }
+.lf-rincian th, .lf-rincian td { border: 1px solid #000; }
+.lf-rincian th { font-weight: 700; text-align: right; }
+.lf-rincian th:first-child, .lf-rincian th.kiri { text-align: left; }
+.lf-rincian th:nth-child(1) { width: 6mm; }
+.lf-rincian th:nth-child(3) { width: 14mm; }
+.lf-rincian th:nth-child(n+4) { width: 21mm; }
+.lf-rincian th:nth-child(7) { width: 27mm; }
+.lf-rincian tbody td { border-top: none; border-bottom: none; }
+.lf-rincian tbody tr:last-child td { border-bottom: 1px solid #000; }
+.lf-rincian .kanan { text-align: right; font-variant-numeric: tabular-nums; }
+.lf-bawah { display: flex; justify-content: space-between; gap: 6mm; margin-top: 2mm; break-inside: avoid; }
+.lf-total { width: 89mm; }
+.lf-total td { padding: 1px 0; }
+.lf-total td + td { text-align: right; width: 50mm; font-variant-numeric: tabular-nums; }
+.lf-total .garis { border-bottom: 1px solid #000; }
+.lf-total .garis-ganda { border-bottom: 3px double #000; }
+.lf-total .tebal td { font-weight: 700; }
+.lf-ttd { display: flex; justify-content: space-around; text-align: center; margin-top: 3mm; break-inside: avoid; }
+.lf-ttd > div { width: 60mm; }
+.lf-kurung { display: flex; justify-content: space-between; margin-top: 12mm; padding: 0 6mm; }
+.lf-catatan { margin-top: 4mm; white-space: pre-line; text-align: justify; break-inside: avoid; }
+
 /* Cetak: laporan mencetak isi halaman; tombol Cetak di dokumen hanya mencetak dokumennya */
 .saringan-centang { grid-column: auto; font-size: 0.9rem; }
 @media print {
@@ -206,10 +246,15 @@ tbody tr:hover { background: #fafcfa; }
   .tabel-wrap { border-color: #000; overflow: visible; }
   th, td { border-color: #999; padding: 5px 8px; }
   tr { break-inside: avoid; }
+  body.cetak-khusus > *:not(.lembar-cetak) { display: none !important; }
+  body.cetak-khusus { background: #fff; }
+  body.cetak-khusus .lembar-cetak { display: block; }
+  .lembar-faktur th, .lembar-faktur td { padding: 0 3px; border-color: #000; }
+  .lembar-faktur .lf-kotak td, .lembar-faktur .lf-total td { padding-left: 0; padding-right: 0; }
 }
 
 /* Layar kecil (HP) */
-@media (max-width: 800px) {
+@media screen and (max-width: 800px) {
   .shell { grid-template-columns: minmax(0, 1fr); grid-template-areas: "atas" "konten"; }
   .tombol-menu { display: block; }
   .menu { position: fixed; top: 0; bottom: 0; left: 0; width: 250px; z-index: 10; transform: translateX(-100%); transition: transform 0.2s; }
@@ -238,3 +283,4 @@ tbody tr:hover { background: #fafcfa; }
   td.kol-aksi::before { content: none; }
   .aksi-baris { flex-wrap: wrap; }
 }
+.logo-kecil { max-height: 28px; max-width: 60px; display: block; }

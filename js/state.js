@@ -14,24 +14,20 @@ export const isOwner = () => state.pengguna?.peran === 'owner';
 export const isKelola = () => ['owner', 'admin'].includes(state.pengguna?.peran);
 export const pid = () => state.perusahaan?.id;
 
+// Isi state baru dulu, baru diganti sekaligus, supaya halaman yang sedang dibuka
+// tidak sempat melihat perusahaan kosong saat sesi dimuat ulang.
 export async function muatSesi() {
   const { data } = await sb.auth.getSession();
-  state.user = data.session?.user ?? null;
-  state.pengguna = null;
-  state.perusahaan = null;
-  state.daftarPerusahaan = [];
-  if (!state.user) return;
-
-  state.pengguna = await q(sb.from('pengguna').select('*').eq('id', state.user.id).maybeSingle());
-  if (!state.pengguna || !state.pengguna.aktif) return;
-
-  state.daftarPerusahaan = await q(sb.from('perusahaan').select('*').eq('aktif', true).order('nama'));
-  if (isOwner()) {
-    const simpan = bacaLokal(KUNCI_PERUSAHAAN);
-    state.perusahaan = state.daftarPerusahaan.find((p) => p.id === simpan) ?? null;
-  } else {
-    state.perusahaan = state.daftarPerusahaan.find((p) => p.id === state.pengguna.perusahaan_id) ?? null;
+  const baru = { user: data.session?.user ?? null, pengguna: null, perusahaan: null, daftarPerusahaan: [] };
+  if (baru.user) {
+    baru.pengguna = await q(sb.from('pengguna').select('*').eq('id', baru.user.id).maybeSingle());
+    if (baru.pengguna?.aktif) {
+      baru.daftarPerusahaan = await q(sb.from('perusahaan').select('*').eq('aktif', true).order('nama'));
+      const id = baru.pengguna.peran === 'owner' ? bacaLokal(KUNCI_PERUSAHAAN) : baru.pengguna.perusahaan_id;
+      baru.perusahaan = baru.daftarPerusahaan.find((p) => p.id === id) ?? null;
+    }
   }
+  Object.assign(state, baru);
 }
 
 export function pilihPerusahaan(id) {

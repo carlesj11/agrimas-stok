@@ -118,7 +118,7 @@ export function halamanDaftar(cfg) {
 }
 
 // Detail dokumen yang bisa dicetak, dengan tombol aksi.
-export function bukaDetail({ judul, dok, info, kolom, baris, ringkasan = [], aksi = [], catatan }) {
+export function bukaDetail({ judul, dok, info, kolom, baris, ringkasan = [], aksi = [], catatan, cetak }) {
   const isi = h('div', { class: 'dokumen' },
     h('div', { class: 'cetak-kop' },
       h('strong', {}, state.perusahaan.nama),
@@ -138,6 +138,7 @@ export function bukaDetail({ judul, dok, info, kolom, baris, ringkasan = [], aks
       aksi.filter(Boolean),
       h('button', {
         class: 'tombol', onclick: () => {
+          if (cetak) { cetak(); return; }
           document.body.classList.add('cetak-modal');
           window.print();
           document.body.classList.remove('cetak-modal');
