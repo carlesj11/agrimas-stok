@@ -2,7 +2,7 @@ import { sb, q } from '../db.js';
 import { pid } from '../state.js';
 import { h, tabel, toast, angka, rupiah } from '../ui.js';
 import {
-  halamanDaftar, bukaDetail, aksiKelola, formDokumen, isian, pilihan, editorBaris, kotakTotal, muatMaster,
+  halamanDaftar, bukaDetail, aksiKelola, formDokumen, isian, pilihan, pilihKetik, editorBaris, kotakTotal, muatMaster,
   namaKode, opsi, rpc, hariIni, tambahHari, tgl, stokGudang,
 } from '../dokumen.js';
 import { cetakFakturJual } from '../cetak-faktur.js';
@@ -28,7 +28,7 @@ async function formFakturJual(ctx) {
     onUbah: (sub) => total.setSubtotal(sub),
   });
 
-  const customer = pilihan(opsi(ctx.customer), { kosong: 'Pilih customer…', wajib: true });
+  const customer = pilihKetik(opsi(ctx.customer), { placeholder: 'Ketik kode atau nama customer…', wajib: true, label: 'customer' });
   const sales = pilihan(opsi(ctx.sales), { kosong: '- Tanpa sales -' });
   const gudang = pilihan(opsi(ctx.gudang), {
     wajib: true,
@@ -45,7 +45,7 @@ async function formFakturJual(ctx) {
     judul: 'Faktur Penjualan Baru',
     badan: h('div', {},
       h('div', { class: 'form-grid form-grid-3' },
-        isian('Customer', customer, { wajib: true }),
+        isian('Customer', customer.el, { wajib: true }),
         isian('Sales', sales),
         isian('Barang keluar dari', gudang, { wajib: true }),
         isian('Tanggal Faktur', tanggal, { wajib: true }),
@@ -56,11 +56,14 @@ async function formFakturJual(ctx) {
       h('h3', {}, 'Barang'),
       editor.el,
       total.el),
-    kumpulkan: () => ({
-      perusahaan_id: pid(), customer_id: customer.value, sales_id: sales.value || null, gudang_id: gudang.value,
-      jenis_bayar: bayar.value, tanggal: tanggal.value, jatuh_tempo: jatuhTempo.value, nomor: nomor.value,
-      keterangan: ket.value || null, ...total.nilai(), baris: editor.ambil(),
-    }),
+    kumpulkan: () => {
+      if (!customer.nilai()) throw new Error('Pilih customer dari daftar yang muncul saat mengetik.');
+      return {
+        perusahaan_id: pid(), customer_id: customer.nilai(), sales_id: sales.value || null, gudang_id: gudang.value,
+        jenis_bayar: bayar.value, tanggal: tanggal.value, jatuh_tempo: jatuhTempo.value, nomor: nomor.value,
+        keterangan: ket.value || null, ...total.nilai(), baris: editor.ambil(),
+      };
+    },
     simpan: async (p) => {
       const id = await rpc('simpan_faktur_penjualan', { p });
       toast('Faktur tersimpan. Stok sudah dikurangi.');

@@ -230,6 +230,24 @@ export function pilihan(daftarOpsi, { kosong = null, nilai = '', wajib = false, 
 
 let nomorDatalist = 0;
 
+// Isian pilihan yang bisa diketik untuk mencari (kode atau nama), seperti isian barang.
+// Mengembalikan { el, nilai() }; nilai() memberi id pilihan, atau '' bila teksnya tidak cocok.
+export function pilihKetik(daftarOpsi, { placeholder = 'Ketik untuk mencari…', wajib = false, label = 'pilihan' } = {}) {
+  const idList = `dl-pilih-${++nomorDatalist}`;
+  const peta = new Map(daftarOpsi.map((o) => [o.label, o.value]));
+  const input = h('input', { list: idList, placeholder, required: wajib, autocomplete: 'off' });
+  const cek = () => {
+    const teks = input.value.trim();
+    input.setCustomValidity(teks && !peta.has(teks) ? `Pilih ${label} dari daftar yang muncul saat mengetik.` : '');
+  };
+  input.addEventListener('input', cek);
+  input.addEventListener('change', cek);
+  return {
+    el: h('div', {}, input, h('datalist', { id: idList }, daftarOpsi.map((o) => h('option', { value: o.label })))),
+    nilai: () => peta.get(input.value.trim()) ?? '',
+  };
+}
+
 // Editor baris barang dengan harga, diskon, PPN, dan subtotal.
 //   barang: daftar barang yang boleh dipilih
 //   hargaAwal(b): harga bawaan saat barang dipilih
