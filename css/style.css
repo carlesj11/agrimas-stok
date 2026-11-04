@@ -225,6 +225,15 @@ tbody tr:hover { background: #fafcfa; }
 .lf-ttd { display: flex; justify-content: space-around; text-align: center; margin-top: 3mm; break-inside: avoid; }
 .lf-ttd > div { width: 60mm; }
 .lf-kurung { display: flex; justify-content: space-between; margin-top: 12mm; padding: 0 6mm; }
+/* Laporan penjualan detail per faktur */
+.lap-detail td, .lap-detail th { border-bottom: none; padding: 3px 10px; }
+.lap-detail thead tr:last-child th { border-bottom: 2px solid var(--garis); }
+.lap-detail tbody tr:hover { background: none; }
+.lap-detail .lap-kepala td { padding-top: 14px; font-weight: 600; }
+.lap-detail .lap-indent { padding-left: 28px; }
+.lap-detail .lap-ringkas td:nth-child(n+2) { border-top: 1px solid var(--garis); }
+.lap-detail .lap-ringkas.tebal td:nth-child(n+2) { border-bottom: 3px double var(--teks); }
+.lap-detail tfoot td { padding-top: 14px; border-top: 2px solid var(--teks); }
 .lf-catatan { margin-top: 4mm; white-space: pre-line; text-align: justify; break-inside: avoid; }
 
 /* Cetak: laporan mencetak isi halaman; tombol Cetak di dokumen hanya mencetak dokumennya */
@@ -246,6 +255,9 @@ tbody tr:hover { background: #fafcfa; }
   .tabel-wrap { border-color: #000; overflow: visible; }
   th, td { border-color: #999; padding: 5px 8px; }
   tr { break-inside: avoid; }
+  .lap-detail tbody { break-inside: avoid; }
+  .lap-detail td, .lap-detail th { padding: 2px 6px; }
+  .lap-detail .lap-indent { padding-left: 18px; }
   body.cetak-khusus > *:not(.lembar-cetak) { display: none !important; }
   body.cetak-khusus { background: #fff; }
   body.cetak-khusus .lembar-cetak { display: block; }
@@ -282,5 +294,15 @@ tbody tr:hover { background: #fafcfa; }
   td.kol-aksi { width: auto; }
   td.kol-aksi::before { content: none; }
   .aksi-baris { flex-wrap: wrap; }
+  /* Laporan detail tetap berbentuk tabel; digeser ke samping bila tidak muat */
+  .lap-detail { overflow-x: auto; }
+  .lap-detail table { display: table; min-width: 720px; }
+  .lap-detail thead { display: table-header-group; }
+  .lap-detail tbody { display: table-row-group; }
+  .lap-detail tfoot { display: table-footer-group; }
+  .lap-detail tr { display: table-row; background: none; border: none; border-radius: 0; margin: 0; padding: 0; }
+  .lap-detail td { display: table-cell; text-align: left; }
+  .lap-detail td.kanan { text-align: right; }
+  .lap-detail td::before { content: none; }
 }
 .logo-kecil { max-height: 28px; max-width: 60px; display: block; }

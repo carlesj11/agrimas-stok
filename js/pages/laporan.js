@@ -36,6 +36,10 @@ function kerangka(konten, { judul, deskripsi, filter, muat, keteranganFilter }) 
     try {
       data = await muat();
       subjudul.textContent = keteranganFilter();
+      if (data.render) {
+        hasil.replaceChildren(h('p', { class: 'info-jumlah' }, data.info), data.render());
+        return;
+      }
       const adaJumlah = data.kolom.some((k) => k.jumlah);
       const total = Object.fromEntries(data.kolom.filter((k) => k.jumlah)
         .map((k) => [k.label, data.baris.reduce((n, r) => n + Number(k.nilai(r) ?? 0), 0)]));
@@ -55,16 +59,18 @@ function kerangka(konten, { judul, deskripsi, filter, muat, keteranganFilter }) 
   const exportExcel = async () => {
     try {
       const XLSX = await muatXlsx();
-      const kepala = data.kolom.map((k) => k.label);
-      const isi = data.baris.map((r) => data.kolom.map((k) => {
+      const kepala = (data.kolom ?? []).map((k) => k.label);
+      const isi = (data.baris ?? []).map((r) => data.kolom.map((k) => {
         const v = k.nilai(r);
         return ['rp', 'qty'].includes(k.jenis) ? Number(v ?? 0) : (k.jenis === 'tgl' ? tgl(v) : v ?? '');
       }));
-      const totalBaris = data.kolom.some((k) => k.jumlah)
+      const totalBaris = data.kolom?.some((k) => k.jumlah)
         ? [data.kolom.map((k, i) => (k.jumlah ? data.baris.reduce((n, r) => n + Number(k.nilai(r) ?? 0), 0) : (i === 0 ? 'TOTAL' : '')))]
         : [];
-      const ws = XLSX.utils.aoa_to_sheet([[`${judul} - ${state.perusahaan.nama}`], [keteranganFilter()], [], kepala, ...isi, ...totalBaris]);
-      ws['!cols'] = kepala.map((k, i) => ({ wch: Math.max(k.length, ...isi.map((r) => String(r[i]).length)) + 2 }));
+      const tabelSheet = data.aoa ?? [kepala, ...isi, ...totalBaris];
+      const ws = XLSX.utils.aoa_to_sheet([[`${judul} - ${state.perusahaan.nama}`], [keteranganFilter()], [], ...tabelSheet]);
+      const lebarKolom = Math.max(...tabelSheet.map((r) => r.length));
+      ws['!cols'] = Array.from({ length: lebarKolom }, (_, i) => ({ wch: Math.min(Math.max(...tabelSheet.map((r) => String(r[i] ?? '').length)) + 2, 60) }));
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, judul.slice(0, 31));
       XLSX.writeFile(wb, `${judul} ${state.perusahaan.kode} ${hariIni()}.xlsx`);
@@ -88,6 +94,16 @@ function kerangka(konten, { judul, deskripsi, filter, muat, keteranganFilter }) 
     h('div', { class: 'saringan' }, filter),
     hasil);
   return segarkan();
+}
+
+// Ambil semua baris walau melebihi batas 1000 baris per permintaan ke Supabase.
+async function semua(buatQuery) {
+  const hasil = [];
+  for (let i = 0; ; i += 1000) {
+    const rows = await q(buatQuery().range(i, i + 999));
+    hasil.push(...rows);
+    if (rows.length < 1000) return hasil;
+  }
 }
 
 const labelTgl = (teks, el) => h('label', { class: 'saringan-tgl' }, teks, el);
@@ -136,8 +152,9 @@ export async function halamanLaporanStok(konten) {
 // ===================================================================
 
 export async function halamanLaporanPenjualan(konten) {
-  const m = await muatMaster('customer', 'sales');
-  const mode = pilihan([{ value: 'faktur', label: 'Per faktur' }, { value: 'barang', label: 'Rekap per barang' }]);
+  const m = await muatMaster('customer', 'sales', 'barang');
+  const mode = pilihan([{ value: 'faktur', label: 'Per faktur' }, { value: 'detail', label: 'Detail per faktur' },
+    { value: 'barang', label: 'Rekap per barang' }]);
   const dari = inputTgl(awalBulan());
   const sampai = inputTgl(hariIni());
   const customer = pilihan(opsi(m.customer, false), { kosong: 'Semua customer' });
@@ -166,12 +183,24 @@ export async function halamanLaporanPenjualan(konten) {
           ],
         };
       }
-      let query = sb.from('faktur_penjualan').select('*').eq('perusahaan_id', pid()).eq('status', 'aktif')
-        .gte('tanggal', dari.value).lte('tanggal', sampai.value).order('tanggal').order('nomor');
-      if (customer.value) query = query.eq('customer_id', customer.value);
-      if (sales.value) query = query.eq('sales_id', sales.value);
+      const queryFaktur = () => {
+        let query = sb.from('faktur_penjualan').select('*').eq('perusahaan_id', pid()).eq('status', 'aktif')
+          .gte('tanggal', dari.value).lte('tanggal', sampai.value).order('tanggal').order('nomor').order('id');
+        if (customer.value) query = query.eq('customer_id', customer.value);
+        if (sales.value) query = query.eq('sales_id', sales.value);
+        return query;
+      };
+      if (mode.value === 'detail') {
+        const faktur = await semua(queryFaktur);
+        const detail = [];
+        for (let i = 0; i < faktur.length; i += 100) {
+          const ids = faktur.slice(i, i + 100).map((f) => f.id);
+          detail.push(...await semua(() => sb.from('faktur_penjualan_detail').select('*').in('faktur_id', ids).order('faktur_id').order('urutan')));
+        }
+        return laporanDetailPenjualan(faktur, detail, m);
+      }
       return {
-        baris: await q(query),
+        baris: await semua(queryFaktur),
         kolom: [
           { label: 'Tanggal', jenis: 'tgl', nilai: (r) => r.tanggal },
           { label: 'Nomor', nilai: (r) => r.nomor },
@@ -184,6 +213,74 @@ export async function halamanLaporanPenjualan(konten) {
       };
     },
   });
+}
+
+// Detail per faktur: kepala faktur, rincian barang, lalu Sub Total, Diskon, PPN, dan Total.
+const fmtDua = new Intl.NumberFormat('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const dua = (n) => fmtDua.format(Number(n ?? 0));
+
+function laporanDetailPenjualan(faktur, detail, m) {
+  const perFaktur = new Map();
+  for (const d of detail) {
+    if (!perFaktur.has(d.faktur_id)) perFaktur.set(d.faktur_id, []);
+    perFaktur.get(d.faktur_id).push(d);
+  }
+  const blok = faktur.map((f) => {
+    const baris = (perFaktur.get(f.id) ?? []).map((d) => ({
+      nama: m.barangMap[d.barang_id]?.nama ?? '',
+      qty: Number(d.qty),
+      harga: Number(d.harga),
+      diskon: Number(d.harga) - Number(d.dpp) / Number(d.qty),
+      total: Number(d.dpp),
+    }));
+    return {
+      f,
+      sales: m.salesMap[f.sales_id]?.nama ?? '',
+      baris,
+      ringkas: [
+        ['Sub Total', baris.reduce((n, r) => n + r.total, 0)],
+        ['Diskon', Number(f.diskon_total)],
+        ['PPN', (perFaktur.get(f.id) ?? []).reduce((n, d) => n + Number(d.ppn), 0) + Number(f.ppn_total)],
+        ['Total', Number(f.total)],
+      ],
+    };
+  });
+  const grand = blok.reduce((n, b) => n + Number(b.f.total), 0);
+
+  const render = () => {
+    if (!blok.length) return h('p', { class: 'kosong' }, 'Tidak ada data untuk filter ini.');
+    const ringkas = ([label, nilai]) => h('tr', { class: label === 'Total' ? 'lap-ringkas tebal' : 'lap-ringkas' },
+      h('td', { colspan: 5 }), h('td', {}, label), h('td', { class: 'kanan' }, dua(nilai)));
+    return h('div', { class: 'tabel-wrap lap-detail' },
+      h('table', {},
+        h('thead', {},
+          h('tr', {}, h('th', {}, 'Tanggal'), h('th', {}, 'No.'), h('th', {}, 'Sales'), h('th', {}, 'Customer'), h('th', { colspan: 3 }, 'Keterangan')),
+          h('tr', {}, h('th', { colspan: 3, class: 'lap-indent' }, 'Nama Stok'), h('th', { class: 'kanan' }, 'Qty'),
+            h('th', { class: 'kanan' }, 'Harga@'), h('th', { class: 'kanan' }, 'Diskon@'), h('th', { class: 'kanan' }, 'Total'))),
+        blok.map((b) => h('tbody', {},
+          h('tr', { class: 'lap-kepala' }, h('td', {}, tgl(b.f.tanggal)), h('td', {}, b.f.nomor), h('td', {}, b.sales),
+            h('td', {}, b.f.nama_customer ?? ''), h('td', { colspan: 3 }, b.f.keterangan ?? '')),
+          b.baris.map((r) => h('tr', {},
+            h('td', { colspan: 3, class: 'lap-indent' }, r.nama), h('td', { class: 'kanan' }, angka(r.qty)),
+            h('td', { class: 'kanan' }, dua(r.harga)), h('td', { class: 'kanan' }, dua(r.diskon)), h('td', { class: 'kanan' }, dua(r.total)))),
+          b.ringkas.map(ringkas))),
+        h('tfoot', {}, h('tr', { class: 'tebal' },
+          h('td', { colspan: 5 }, `Total ${blok.length} faktur`), h('td', {}, 'Total'), h('td', { class: 'kanan' }, dua(grand))))));
+  };
+
+  const aoa = [
+    ['Tanggal', 'No.', 'Sales', 'Customer', 'Keterangan'],
+    ['Nama Stok', '', '', 'Qty', 'Harga@', 'Diskon@', 'Total'],
+    ...blok.flatMap((b) => [
+      [],
+      [tgl(b.f.tanggal), b.f.nomor, b.sales, b.f.nama_customer ?? '', b.f.keterangan ?? ''],
+      ...b.baris.map((r) => [r.nama, '', '', r.qty, r.harga, r.diskon, r.total]),
+      ...b.ringkas.map(([label, nilai]) => ['', '', '', '', '', label, nilai]),
+    ]),
+    [],
+    [`Total ${blok.length} faktur`, '', '', '', '', 'Total', grand],
+  ];
+  return { render, aoa, info: `${blok.length} faktur` };
 }
 
 // ===================================================================
