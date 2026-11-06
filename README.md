@@ -37,7 +37,7 @@ Aturan ini dijaga di database (Row Level Security), bukan hanya di tampilan.
 ## Setup Supabase (sekali saja)
 
 1. **Matikan konfirmasi email.** Supabase → Authentication → Sign In / Providers → Email → matikan **Confirm email** → Save. Login memakai username, jadi tidak ada email sungguhan yang bisa dikonfirmasi.
-2. **Buat struktur database.** Supabase → SQL Editor → New query → tempel seluruh isi [`supabase/001_fondasi.sql`](supabase/001_fondasi.sql) → Run. Script ini juga membuat perusahaan pertama, CV Prima Agro Perkasa (PAP). Lalu ulangi dengan [`supabase/002_transaksi.sql`](supabase/002_transaksi.sql), [`supabase/003_laporan.sql`](supabase/003_laporan.sql), dan [`supabase/004_faktur.sql`](supabase/004_faktur.sql), masing-masing di query baru. Jalankan setiap file sekali saja, berurutan.
+2. **Buat struktur database.** Supabase → SQL Editor → New query → tempel seluruh isi [`supabase/001_fondasi.sql`](supabase/001_fondasi.sql) → Run. Script ini juga membuat perusahaan pertama, CV Prima Agro Perkasa (PAP). Lalu ulangi dengan [`supabase/002_transaksi.sql`](supabase/002_transaksi.sql), [`supabase/003_laporan.sql`](supabase/003_laporan.sql), [`supabase/004_faktur.sql`](supabase/004_faktur.sql), dan [`supabase/005_tanpa_batal.sql`](supabase/005_tanpa_batal.sql), masing-masing di query baru. Jalankan setiap file sekali saja, berurutan.
 3. **Buat akun Owner.** Supabase → Authentication → Users → Add user → Create new user:
    - Email: `<username>@agrimas-stok.app`, misalnya `carles@agrimas-stok.app`
    - Password: bebas (minimal 6 karakter)

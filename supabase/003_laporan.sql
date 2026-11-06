@@ -20,6 +20,7 @@ language sql stable security invoker set search_path = public as $$
         from mutasi_stok ms
        where ms.perusahaan_id = p_pid and ms.tanggal <= p_tanggal
          and (p_gudang is null or ms.gudang_id = p_gudang)
+         and not _dokumen_dibatalkan(ms.dokumen_tabel, ms.dokumen_id)
        group by ms.barang_id
     ) m on m.barang_id = b.id
    where b.perusahaan_id = p_pid
