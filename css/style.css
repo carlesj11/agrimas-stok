@@ -65,12 +65,12 @@ input[readonly] { background: var(--latar); }
 /* Kerangka aplikasi */
 .shell {
   display: grid; min-height: 100vh;
-  grid-template-columns: 230px minmax(0, 1fr); grid-template-rows: auto 1fr;
-  grid-template-areas: "menu atas" "menu konten";
+  grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto 1fr;
+  grid-template-areas: "atas" "menu" "konten";
 }
 .atas {
   grid-area: atas; display: flex; align-items: center; gap: 12px; padding: 10px 24px;
-  background: var(--permukaan); border-bottom: 1px solid var(--garis); position: sticky; top: 0; z-index: 5;
+  background: var(--permukaan); border-bottom: 1px solid var(--garis); position: relative; z-index: 7;
 }
 .tombol-menu { display: none; }
 .nama-perusahaan { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
@@ -83,12 +83,30 @@ input[readonly] { background: var(--latar); }
 }
 .menu-akun .tombol { text-align: left; }
 
-.menu { grid-area: menu; background: #1f3a2b; color: #dfe9e2; padding: 16px 10px; overflow-y: auto; }
-.menu-grup { margin-bottom: 14px; }
-.menu-judul { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: #93ad9b; padding: 4px 10px; }
-.menu-item { display: flex; justify-content: space-between; align-items: center; padding: 7px 10px; border-radius: 6px; color: inherit; text-decoration: none; }
-a.menu-item:hover { background: rgb(255 255 255 / 0.08); }
-a.menu-item.aktif { background: var(--utama); color: #fff; }
+/* Baris menu di atas; setiap grup membuka daftar turun */
+.menu {
+  grid-area: menu; background: #1f3a2b; color: #dfe9e2; padding: 6px 24px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+  position: sticky; top: 0; z-index: 6;
+}
+.menu > .menu-item, .menu-judul {
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 6px;
+  color: inherit; text-decoration: none; font: inherit; background: none; border: 0; cursor: pointer; white-space: nowrap;
+}
+.menu > .menu-item:hover, .menu-judul:hover, .menu-grup.terbuka > .menu-judul { background: rgb(255 255 255 / 0.1); }
+.menu > .menu-item.aktif, .menu-grup.aktif > .menu-judul { background: var(--utama); color: #fff; }
+.panah { display: inline-block; font-size: 0.75em; opacity: 0.8; transition: transform 0.15s; }
+.menu-grup { position: relative; }
+.menu-grup.terbuka .panah { transform: rotate(180deg); }
+.menu-turun {
+  display: none; position: absolute; left: 0; top: calc(100% + 4px); min-width: 230px; padding: 6px;
+  background: var(--permukaan); color: var(--teks); border: 1px solid var(--garis); border-radius: var(--radius);
+  box-shadow: var(--bayang); z-index: 20;
+}
+.menu-grup.terbuka .menu-turun { display: grid; }
+.menu-turun .menu-item { display: block; padding: 8px 12px; border-radius: 6px; color: inherit; text-decoration: none; white-space: nowrap; }
+.menu-turun .menu-item:hover { background: var(--latar, #f3f5f3); }
+.menu-turun .menu-item.aktif { background: var(--utama); color: #fff; }
 
 .konten { grid-area: konten; padding: 24px; min-width: 0; }
 .kepala-halaman { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
@@ -267,10 +285,13 @@ tbody tr:hover { background: #fafcfa; }
 
 /* Layar kecil (HP) */
 @media screen and (max-width: 800px) {
-  .shell { grid-template-columns: minmax(0, 1fr); grid-template-areas: "atas" "konten"; }
   .tombol-menu { display: block; }
-  .menu { position: fixed; top: 0; bottom: 0; left: 0; width: 250px; z-index: 10; transform: translateX(-100%); transition: transform 0.2s; }
-  .menu-terbuka .menu { transform: none; box-shadow: 4px 0 24px rgb(0 0 0 / 0.3); }
+  /* Di HP menu turun dari atas setelah tombol ☰ ditekan; grup dibuka satu per satu */
+  .menu { display: none; padding: 8px 12px 12px; max-height: calc(100vh - 56px); overflow-y: auto; }
+  .menu-terbuka .menu { display: flex; flex-direction: column; align-items: stretch; box-shadow: 0 8px 24px rgb(0 0 0 / 0.3); }
+  .menu > .menu-item, .menu-judul { width: 100%; justify-content: space-between; }
+  .menu-turun { position: static; box-shadow: none; border: 0; background: rgb(255 255 255 / 0.06); color: inherit; margin: 2px 0 6px; }
+  .menu-turun .menu-item:hover { background: rgb(255 255 255 / 0.1); }
   .atas { padding: 8px 16px; gap: 8px; }
   .akun > .tombol { max-width: 34vw; }
   .konten { padding: 16px; }

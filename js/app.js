@@ -11,7 +11,7 @@ import { halamanLaporanStok, halamanLaporanPenjualan, halamanLaporanPembelian, h
 
 const app = document.getElementById('app');
 
-// Menu samping.
+// Menu utama: baris menu di atas, setiap grup membuka daftar turun (dropdown).
 const MENU = [
   { grup: null, item: [{ rute: 'beranda', label: 'Beranda', render: halamanBeranda }] },
   {
@@ -139,6 +139,9 @@ function layarAplikasi() {
   const konten = h('main', { class: 'konten', id: 'konten', onclick: () => shell.classList.remove('menu-terbuka') });
   const nav = h('nav', { class: 'menu', 'aria-label': 'Menu utama' });
   const shell = h('div', { class: 'shell' });
+  const tutupGrup = (kecuali) => nav.querySelectorAll('.menu-grup.terbuka').forEach((g) => {
+    if (g !== kecuali) { g.classList.remove('terbuka'); g.querySelector('.menu-judul')?.setAttribute('aria-expanded', 'false'); }
+  });
 
   const menuAkun = h('div', { class: 'menu-akun', hidden: true },
     h('button', { class: 'tombol tombol-teks', onclick: () => { menuAkun.hidden = true; gantiPassword(); } }, 'Ganti password'),
@@ -158,10 +161,27 @@ function layarAplikasi() {
   nav.append(...MENU.map((g) => {
     const item = g.item.filter((i) => !i.syarat || i.syarat());
     if (!item.length) return '';
-    return h('div', { class: 'menu-grup' },
-      g.grup && h('div', { class: 'menu-judul' }, g.grup),
-      item.map((i) => h('a', { class: 'menu-item', href: `#/${i.rute}`, 'data-rute': i.rute }, i.label)));
-  }));
+    const tautan = item.map((i) => h('a', { class: 'menu-item', href: `#/${i.rute}`, 'data-rute': i.rute }, i.label));
+    if (!g.grup) return tautan;
+    const grup = h('div', { class: 'menu-grup' });
+    const judul = h('button', {
+      type: 'button', class: 'menu-judul', 'aria-haspopup': 'true', 'aria-expanded': 'false',
+      onclick: () => {
+        const buka = !grup.classList.contains('terbuka');
+        tutupGrup(grup);
+        grup.classList.toggle('terbuka', buka);
+        judul.setAttribute('aria-expanded', String(buka));
+      },
+    }, g.grup, h('span', { class: 'panah', 'aria-hidden': 'true' }, '▾'));
+    grup.append(judul, h('div', { class: 'menu-turun' }, tautan));
+    return grup;
+  }).flat());
+  // Daftar turun tertutup saat klik di luar menu atau menekan Escape.
+  document.addEventListener('click', (e) => { if (!nav.contains(e.target)) tutupGrup(); });
+  nav.addEventListener('click', (e) => {
+    if (e.target.closest('.menu-item')) { tutupGrup(); shell.classList.remove('menu-terbuka'); }
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') tutupGrup(); });
 
   shell.append(header, nav, konten);
   app.replaceChildren(shell);
@@ -175,6 +195,11 @@ async function bukaRute() {
   const rute = semuaRute().find((r) => r.rute === nama) ?? semuaRute()[0];
   document.querySelectorAll('.menu-item[data-rute]').forEach((a) =>
     a.classList.toggle('aktif', a.dataset.rute === rute.rute));
+  document.querySelectorAll('.menu-grup').forEach((g) => {
+    g.classList.toggle('aktif', !!g.querySelector('.menu-item.aktif'));
+    g.classList.remove('terbuka');
+    g.querySelector('.menu-judul')?.setAttribute('aria-expanded', 'false');
+  });
   document.querySelector('.shell')?.classList.remove('menu-terbuka');
   document.title = `${rute.label} · Manajemen Stok`;
   // Setiap kunjungan dapat wadah baru, jadi halaman lama yang selesai dimuat
