@@ -576,3 +576,97 @@ export const halamanReturBeli = halamanDaftar({
   bukaDetail: detailReturBeli,
 });
 
+
+// ===================================================================
+// Pembelian Sementara (barang dari mitra yang tidak dicatat sebagai pembelian)
+// ===================================================================
+
+const siapkanPBS = () => muatMaster('supplier', 'barang', 'gudang');
+
+// `lama`: pembelian sementara yang diedit (tanpa itu, form mencatat yang baru).
+async function formPembelianSementara(ctx, lama) {
+  const gudangAktif = ctx.gudang.filter((g) => g.aktif);
+  if (!gudangAktif.length && !lama) { toast('Buat gudang dulu di menu Gudang.', 'error'); return; }
+  const rowsLama = lama ? await q(sb.from('pembelian_sementara_detail').select('*').eq('pbs_id', lama.id).order('urutan')) : [];
+  const ikut = new Set(rowsLama.map((r) => r.barang_id));
+  const editor = editorBaris({
+    barang: ctx.barang.filter((b) => b.aktif || ikut.has(b.id)),
+    hargaAwal: (b) => Number(b.harga_beli) || Number(b.hpp) || 0,
+    infoBarang: (b) => `Satuan ${b.satuan}`,
+    denganDiskon: false,
+  });
+  const mitra = pilihan(opsi(ctx.supplier, true, lama?.mitra_id), { kosong: 'Pilih mitra…', wajib: true, nilai: lama?.mitra_id ?? '' });
+  const gudang = pilihan(opsi(ctx.gudang, true, lama?.gudang_id), { wajib: true, nilai: lama?.gudang_id ?? '' });
+  const tanggal = h('input', { type: 'date', value: lama?.tanggal ?? hariIni(), required: true });
+  const nomor = h('input', { placeholder: 'Kosongkan untuk nomor otomatis', value: lama?.nomor ?? '' });
+  const ket = h('textarea', { rows: 2 }, lama?.keterangan ?? '');
+  if (lama) editor.isi(rowsLama);
+
+  formDokumen({
+    judul: lama ? `Edit Pembelian Sementara ${lama.nomor}` : 'Pembelian Sementara Baru',
+    badan: h('div', {},
+      h('div', { class: 'form-grid form-grid-3' },
+        isian('Mitra', mitra, { wajib: true, hint: 'Daftar mitra diambil dari menu Supplier.' }),
+        isian('Masuk ke Gudang', gudang, { wajib: true }),
+        isian('Tanggal', tanggal, { wajib: true }),
+        isian('Nomor', nomor),
+        isian('Keterangan', ket, { penuh: true })),
+      h('h3', {}, 'Barang'),
+      editor.el,
+      h('p', { class: 'catatan' },
+        'Stok langsung bertambah, tetapi tidak masuk laporan pembelian. Bila barang ini nanti dibeli resmi dari supplier, ' +
+        'catat pembeliannya dulu, lalu edit dokumen ini untuk mengurangi atau menghapus barangnya.')),
+    kumpulkan: () => ({
+      id: lama?.id, perusahaan_id: pid(), mitra_id: mitra.value, gudang_id: gudang.value, tanggal: tanggal.value,
+      nomor: nomor.value, keterangan: ket.value || null,
+      baris: editor.ambil().map((b) => ({ barang_id: b.barang_id, qty: b.qty, harga: b.harga })),
+    }),
+    simpan: async (p) => {
+      const id = await rpc('simpan_pembelian_sementara', { p });
+      toast(lama ? 'Perubahan tersimpan. Stok sudah disesuaikan.' : 'Pembelian sementara tersimpan. Stok sudah bertambah.');
+      await ctx.muatUlang();
+      const dok = await q(sb.from('pembelian_sementara').select('*').eq('id', id).single());
+      detailPembelianSementara(dok, ctx);
+    },
+  });
+}
+
+async function detailPembelianSementara(dok, ctx) {
+  const baris = await q(sb.from('pembelian_sementara_detail').select('*').eq('pbs_id', dok.id).order('urutan'));
+  const tutup = bukaDetail({
+    judul: 'Pembelian Sementara',
+    dok,
+    info: [
+      ['Mitra', namaKode(ctx.supplierMap[dok.mitra_id])],
+      ['Tanggal', tgl(dok.tanggal)],
+      ['Gudang', namaKode(ctx.gudangMap[dok.gudang_id])],
+      ['Keterangan', dok.keterangan],
+    ],
+    kolom: [
+      { label: 'Barang', isi: (r) => namaBarang(ctx, r.barang_id) },
+      { label: 'Qty', kelas: 'kanan', isi: (r) => `${angka(r.qty)} ${satuan(ctx, r.barang_id)}` },
+      { label: 'Harga', kelas: 'kanan', isi: (r) => rupiah(r.harga) },
+      { label: 'Subtotal', kelas: 'kanan', isi: (r) => rupiah(r.subtotal) },
+    ],
+    baris,
+    ringkasan: [['Total', rupiah(dok.total), true]],
+    aksi: aksiKelola('pembelian_sementara', dok, {
+      tutupDetail: () => tutup(), muatUlang: ctx.muatUlang, edit: () => formPembelianSementara(ctx, dok),
+    }),
+  });
+}
+
+export const halamanPembelianSementara = halamanDaftar({
+  judul: 'Pembelian Sementara',
+  deskripsi: 'Barang yang diambil dari mitra tanpa dicatat sebagai pembelian. Stok bertambah, tetapi tidak masuk laporan pembelian.',
+  tabel: 'pembelian_sementara',
+  siapkan: siapkanPBS,
+  cari: (r, m) => [m.supplierMap[r.mitra_id]?.nama, r.keterangan],
+  kolom: [
+    { label: 'Mitra', isi: (r, m) => m.supplierMap[r.mitra_id]?.nama ?? '-' },
+    { label: 'Gudang', isi: (r, m) => m.gudangMap[r.gudang_id]?.nama ?? '-' },
+    { label: 'Total', kelas: 'kanan', isi: (r) => rupiah(r.total) },
+  ],
+  tombolBuat: { label: '+ Pembelian Sementara', aksi: (ctx) => formPembelianSementara(ctx) },
+  bukaDetail: detailPembelianSementara,
+});

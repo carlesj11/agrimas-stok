@@ -179,6 +179,7 @@ const JENIS_NOMOR = [
   { jenis: 'RB', label: 'Retur Pembelian', bawaan: 'RB/{PRSH}/{YYYY}/{MM}/{NNNN}' },
   { jenis: 'PS', label: 'Penyesuaian Stok', bawaan: 'PS/{PRSH}/{YYYY}/{MM}/{NNNN}' },
   { jenis: 'TG', label: 'Pindah Gudang', bawaan: 'TG/{PRSH}/{YYYY}/{MM}/{NNNN}' },
+  { jenis: 'PBS', label: 'Pembelian Sementara', bawaan: 'PBS/{PRSH}/{YYYY}/{MM}/{NNNN}' },
 ];
 
 function contohNomor(format) {

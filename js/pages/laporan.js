@@ -371,3 +371,69 @@ export async function halamanLaporanPO(konten) {
     },
   });
 }
+
+// ===================================================================
+// Sisa Pembelian Sementara
+// ===================================================================
+
+export async function halamanLaporanSementara(konten) {
+  const m = await muatMaster('supplier', 'barang', 'gudang');
+  const mode = pilihan([{ value: 'dokumen', label: 'Per dokumen' }, { value: 'barang', label: 'Rekap per mitra dan barang' }]);
+  const mitra = pilihan(opsi(m.supplier, false), { kosong: 'Semua mitra' });
+
+  await kerangka(konten, {
+    judul: 'Sisa Pembelian Sementara',
+    deskripsi: 'Barang dari mitra yang masih tercatat sebagai pembelian sementara (belum dibeli resmi dari supplier).',
+    filter: [mode, mitra],
+    keteranganFilter: () => `Per ${tgl(hariIni())} · ${teksPilihan(mitra)}`,
+    muat: async () => {
+      const dok = await semua(() => {
+        let query = sb.from('pembelian_sementara').select('*').eq('perusahaan_id', pid()).eq('status', 'aktif').order('tanggal').order('nomor');
+        if (mitra.value) query = query.eq('mitra_id', mitra.value);
+        return query;
+      });
+      const dokMap = Object.fromEntries(dok.map((d) => [d.id, d]));
+      const detail = [];
+      for (let i = 0; i < dok.length; i += 100) {
+        const ids = dok.slice(i, i + 100).map((d) => d.id);
+        detail.push(...await semua(() => sb.from('pembelian_sementara_detail').select('*').in('pbs_id', ids).order('urutan')));
+      }
+      const barang = (r) => m.barangMap[r.barang_id];
+      if (mode.value === 'barang') {
+        const rekap = new Map();
+        for (const d of detail) {
+          const k = `${dokMap[d.pbs_id].mitra_id}|${d.barang_id}`;
+          const r = rekap.get(k) ?? { mitra_id: dokMap[d.pbs_id].mitra_id, barang_id: d.barang_id, qty: 0, nilai: 0 };
+          r.qty += Number(d.qty); r.nilai += Number(d.subtotal);
+          rekap.set(k, r);
+        }
+        return {
+          baris: [...rekap.values()].sort((a, b) => (m.supplierMap[a.mitra_id]?.nama ?? '').localeCompare(m.supplierMap[b.mitra_id]?.nama ?? '')
+            || (barang(a)?.nama ?? '').localeCompare(barang(b)?.nama ?? '')),
+          kolom: [
+            { label: 'Mitra', nilai: (r) => m.supplierMap[r.mitra_id]?.nama ?? '' },
+            { label: 'Kode', nilai: (r) => barang(r)?.kode ?? '' },
+            { label: 'Nama Barang', nilai: (r) => barang(r)?.nama ?? '' },
+            { label: 'Satuan', nilai: (r) => barang(r)?.satuan ?? '' },
+            { label: 'Qty', jenis: 'qty', nilai: (r) => r.qty },
+            { label: 'Nilai', jenis: 'rp', nilai: (r) => r.nilai, jumlah: true },
+          ],
+        };
+      }
+      return {
+        baris: detail.map((d) => ({ ...d, dok: dokMap[d.pbs_id] }))
+          .sort((a, b) => a.dok.tanggal.localeCompare(b.dok.tanggal) || a.dok.nomor.localeCompare(b.dok.nomor) || a.urutan - b.urutan),
+        kolom: [
+          { label: 'Tanggal', jenis: 'tgl', nilai: (r) => r.dok.tanggal },
+          { label: 'Nomor', nilai: (r) => r.dok.nomor },
+          { label: 'Mitra', nilai: (r) => m.supplierMap[r.dok.mitra_id]?.nama ?? '' },
+          { label: 'Gudang', nilai: (r) => m.gudangMap[r.dok.gudang_id]?.nama ?? '' },
+          { label: 'Barang', nilai: (r) => namaKode(barang(r)) },
+          { label: 'Qty', jenis: 'qty', nilai: (r) => Number(r.qty) },
+          { label: 'Harga', jenis: 'rp', nilai: (r) => Number(r.harga) },
+          { label: 'Nilai', jenis: 'rp', nilai: (r) => Number(r.subtotal), jumlah: true },
+        ],
+      };
+    },
+  });
+}

@@ -4,10 +4,10 @@ import { h, toast } from './ui.js';
 import { halamanBeranda } from './pages/beranda.js';
 import { halamanBarang, halamanSupplier, halamanCustomer, halamanSales, halamanGudang } from './pages/master.js';
 import { halamanPerusahaan, halamanPengguna, halamanPenomoran, gantiPassword } from './pages/pengaturan.js';
-import { halamanPO, halamanSJMasuk, halamanFakturBeli, halamanReturBeli } from './pages/pembelian.js';
+import { halamanPO, halamanSJMasuk, halamanFakturBeli, halamanReturBeli, halamanPembelianSementara } from './pages/pembelian.js';
 import { halamanFakturJual, halamanSJKeluar, halamanReturJual } from './pages/penjualan.js';
 import { halamanKartuStok, halamanPenyesuaian, halamanTransfer } from './pages/stok.js';
-import { halamanLaporanStok, halamanLaporanPenjualan, halamanLaporanPembelian, halamanLaporanPO } from './pages/laporan.js';
+import { halamanLaporanStok, halamanLaporanPenjualan, halamanLaporanPembelian, halamanLaporanPO, halamanLaporanSementara } from './pages/laporan.js';
 
 const app = document.getElementById('app');
 
@@ -29,6 +29,7 @@ const MENU = [
       { rute: 'sj-masuk', label: 'Surat Jalan Masuk', render: halamanSJMasuk },
       { rute: 'faktur-supplier', label: 'Faktur Supplier', render: halamanFakturBeli },
       { rute: 'retur-pembelian', label: 'Retur Pembelian', render: halamanReturBeli },
+      { rute: 'pembelian-sementara', label: 'Pembelian Sementara', render: halamanPembelianSementara },
     ],
   },
   {
@@ -51,6 +52,7 @@ const MENU = [
       { rute: 'laporan-penjualan', label: 'Laporan Penjualan', render: halamanLaporanPenjualan },
       { rute: 'laporan-pembelian', label: 'Laporan Pembelian', render: halamanLaporanPembelian },
       { rute: 'laporan-po', label: 'PO Belum Terpenuhi', render: halamanLaporanPO },
+      { rute: 'laporan-sementara', label: 'Sisa Pembelian Sementara', render: halamanLaporanSementara },
     ],
   },
   {

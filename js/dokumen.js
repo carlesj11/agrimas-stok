@@ -275,7 +275,8 @@ export function pilihKetik(daftarOpsi, { placeholder = 'Ketik untuk mencari…',
 //   barang: daftar barang yang boleh dipilih
 //   hargaAwal(b): harga bawaan saat barang dipilih
 //   infoBarang(b): teks kecil di bawah nama barang (misalnya stok tersedia)
-export function editorBaris({ barang, hargaAwal = (b) => b.harga_jual, infoBarang, denganHarga = true, onUbah }) {
+//   denganDiskon: false = hanya qty dan harga (tanpa kolom diskon dan PPN)
+export function editorBaris({ barang, hargaAwal = (b) => b.harga_jual, infoBarang, denganHarga = true, denganDiskon = true, onUbah }) {
   const idList = `dl-barang-${++nomorDatalist}`;
   const peta = new Map(barang.map((b) => [namaKode(b), b]));
   const datalist = h('datalist', { id: idList }, barang.map((b) => h('option', { value: namaKode(b) })));
@@ -334,9 +335,9 @@ export function editorBaris({ barang, hargaAwal = (b) => b.harga_jual, infoBaran
       h('td', { 'data-label': 'Barang' }, pilih, info),
       h('td', { 'data-label': 'Qty', class: 'kanan' }, qty),
       denganHarga && h('td', { 'data-label': 'Harga', class: 'kanan' }, harga),
-      denganHarga && h('td', { 'data-label': 'Disk %', class: 'kanan' }, dp),
-      denganHarga && h('td', { 'data-label': 'Disk Rp', class: 'kanan' }, dn),
-      denganHarga && h('td', { 'data-label': 'PPN %', class: 'kanan' }, pp),
+      denganHarga && denganDiskon && h('td', { 'data-label': 'Disk %', class: 'kanan' }, dp),
+      denganHarga && denganDiskon && h('td', { 'data-label': 'Disk Rp', class: 'kanan' }, dn),
+      denganHarga && denganDiskon && h('td', { 'data-label': 'PPN %', class: 'kanan' }, pp),
       denganHarga && h('td', { 'data-label': 'Subtotal', class: 'kanan' }, subtotal),
       h('td', { class: 'kol-aksi' }, h('button', {
         type: 'button', class: 'tombol tombol-kecil tombol-bahaya', 'aria-label': 'Hapus baris',
@@ -352,8 +353,9 @@ export function editorBaris({ barang, hargaAwal = (b) => b.harga_jual, infoBaran
     h('div', { class: 'tabel-wrap' }, h('table', { class: 'tabel-input' },
       h('thead', {}, h('tr', {},
         h('th', {}, 'Barang'), h('th', { class: 'kanan' }, 'Qty'),
-        denganHarga && [h('th', { class: 'kanan' }, 'Harga'), h('th', { class: 'kanan' }, 'Disk %'),
-          h('th', { class: 'kanan' }, 'Disk Rp'), h('th', { class: 'kanan' }, 'PPN %'), h('th', { class: 'kanan' }, 'Subtotal')],
+        denganHarga && h('th', { class: 'kanan' }, 'Harga'),
+        denganHarga && denganDiskon && [h('th', { class: 'kanan' }, 'Disk %'), h('th', { class: 'kanan' }, 'Disk Rp'), h('th', { class: 'kanan' }, 'PPN %')],
+        denganHarga && h('th', { class: 'kanan' }, 'Subtotal'),
         h('th', {}))),
       tbody)),
     h('div', { class: 'editor-bawah' },
