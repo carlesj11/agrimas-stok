@@ -3,7 +3,7 @@ import { pid, isKelola } from '../state.js';
 import { h, tabel, toast, angka, rupiah, konfirmasi } from '../ui.js';
 import {
   halamanDaftar, bukaDetail, aksiKelola, formDokumen, isian, pilihan, editorBaris, kotakTotal, muatMaster,
-  namaKode, opsi, rpc, hariIni, tambahHari, tgl, hitungBaris,
+  namaKode, opsi, rpc, hariIni, tambahHari, tgl, hitungBaris, cekTanpaLanjutan,
 } from '../dokumen.js';
 
 const satuan = (m, id) => m.barangMap[id]?.satuan ?? '';
@@ -19,21 +19,24 @@ async function siapkanPO() {
   return m;
 }
 
-function formPO(ctx) {
-  const tanggal = h('input', { type: 'date', value: hariIni(), required: true });
-  const jatuhTempo = h('input', { type: 'date' });
-  const nomor = h('input', { placeholder: 'Kosongkan untuk nomor otomatis' });
-  const ket = h('textarea', { rows: 2 });
+// `lama`: PO yang diedit (tanpa itu, form membuat PO baru).
+async function formPO(ctx, lama) {
+  const rowsLama = lama ? await q(sb.from('po_detail').select('*').eq('po_id', lama.id).order('urutan')) : [];
+  const tanggal = h('input', { type: 'date', value: lama?.tanggal ?? hariIni(), required: true });
+  const jatuhTempo = h('input', { type: 'date', value: lama?.jatuh_tempo ?? '' });
+  const nomor = h('input', { placeholder: 'Kosongkan untuk nomor otomatis', value: lama?.nomor ?? '' });
+  const ket = h('textarea', { rows: 2 }, lama?.keterangan ?? '');
   const total = kotakTotal();
   const wadahEditor = h('div', {}, h('p', { class: 'catatan' }, 'Pilih supplier dulu untuk menampilkan barangnya.'));
   let editor = null;
 
-  const supplier = pilihan(opsi(ctx.supplier), {
-    kosong: 'Pilih supplier…', wajib: true,
+  const supplier = pilihan(opsi(ctx.supplier, true, lama?.supplier_id), {
+    kosong: 'Pilih supplier…', wajib: true, nilai: lama?.supplier_id ?? '',
     onchange: () => {
       const dipasok = ctx.barangSupplier.filter((x) => x.supplier_id === supplier.value);
       const hargaKhusus = Object.fromEntries(dipasok.map((x) => [x.barang_id, Number(x.harga_beli)]));
-      const barang = ctx.barang.filter((b) => b.aktif && b.id in hargaKhusus);
+      const diPO = new Set(supplier.value === lama?.supplier_id ? rowsLama.map((r) => r.barang_id) : []);
+      const barang = ctx.barang.filter((b) => (b.aktif && b.id in hargaKhusus) || diPO.has(b.id));
       if (!barang.length) {
         editor = null;
         wadahEditor.replaceChildren(h('p', { class: 'form-error' },
@@ -46,12 +49,17 @@ function formPO(ctx) {
         infoBarang: (b) => `Satuan ${b.satuan}`,
         onUbah: (sub) => total.setSubtotal(sub),
       });
+      if (diPO.size) editor.isi(rowsLama);
       wadahEditor.replaceChildren(editor.el);
     },
   });
+  if (lama) {
+    supplier.dispatchEvent(new Event('change'));
+    total.isi(lama);
+  }
 
   formDokumen({
-    judul: 'Purchase Order Baru',
+    judul: lama ? `Edit PO ${lama.nomor}` : 'Purchase Order Baru',
     badan: h('div', {},
       h('div', { class: 'form-grid form-grid-3' },
         isian('Supplier', supplier, { wajib: true }),
@@ -65,13 +73,13 @@ function formPO(ctx) {
     kumpulkan: () => {
       if (!editor) throw new Error('Pilih supplier yang punya daftar barang.');
       return {
-        perusahaan_id: pid(), supplier_id: supplier.value, tanggal: tanggal.value, jatuh_tempo: jatuhTempo.value || null,
+        id: lama?.id, perusahaan_id: pid(), supplier_id: supplier.value, tanggal: tanggal.value, jatuh_tempo: jatuhTempo.value || null,
         nomor: nomor.value, keterangan: ket.value || null, ...total.nilai(), baris: editor.ambil(),
       };
     },
     simpan: async (p) => {
       const id = await rpc('simpan_po', { p });
-      toast('PO tersimpan.');
+      toast(lama ? 'Perubahan PO tersimpan.' : 'PO tersimpan.');
       await ctx.muatUlang();
       const dok = await q(sb.from('purchase_order').select('*').eq('id', id).single());
       detailPO(dok, ctx);
@@ -115,7 +123,14 @@ async function detailPO(dok, ctx) {
           try { await rpc('tutup_po', { p_id: dok.id }); toast('PO ditutup.'); tutup(); await ctx.muatUlang(); } catch (e) { toast(e.message, 'error'); }
         },
       }, 'Tutup PO'),
-      ...aksiKelola('purchase_order', dok, { tutupDetail: () => tutup(), muatUlang: ctx.muatUlang, jatuhTempo: true }),
+      ...aksiKelola('purchase_order', dok, {
+        tutupDetail: () => tutup(), muatUlang: ctx.muatUlang, jatuhTempo: true,
+        edit: async () => {
+          await cekTanpaLanjutan('surat_jalan_masuk', 'po_id', dok.id,
+            'PO ini sudah punya surat jalan masuk. Edit surat jalannya, atau batalkan surat jalannya dulu sebelum mengedit PO.');
+          await formPO(ctx, dok);
+        },
+      }),
     ],
   });
 }
@@ -148,26 +163,42 @@ async function siapkanSJ() {
   return m;
 }
 
-async function formSJMasuk(ctx, poAwal) {
+// `lama`: surat jalan yang diedit (tanpa itu, form mencatat penerimaan baru).
+async function formSJMasuk(ctx, poAwal, lama) {
   const m = ctx.poMap ? ctx : { ...(await siapkanSJ()), muatUlang: ctx.muatUlang };
-  const poTerbuka = m.po.filter((p) => ['terbuka', 'sebagian'].includes(p.status));
-  const tanggal = h('input', { type: 'date', value: hariIni(), required: true });
-  const nomor = h('input', { required: true, placeholder: 'Nomor surat jalan dari supplier' });
-  const gudang = pilihan(opsi(m.gudang), { wajib: true });
-  const ket = h('textarea', { rows: 2 });
+  if (lama) poAwal = lama.po_id;
+  const poTerbuka = m.po.filter((p) => ['terbuka', 'sebagian'].includes(p.status) || p.id === lama?.po_id);
+  const tanggal = h('input', { type: 'date', value: lama?.tanggal ?? hariIni(), required: true });
+  const nomor = h('input', { required: true, placeholder: 'Nomor surat jalan dari supplier', value: lama?.nomor ?? '' });
+  const gudang = pilihan(opsi(m.gudang, true, lama?.gudang_id), { wajib: true, nilai: lama?.gudang_id ?? '' });
+  const ket = h('textarea', { rows: 2 }, lama?.keterangan ?? '');
   const wadah = h('div');
   let input = [];
+  // Saat edit, qty surat jalan ini sendiri dikembalikan ke sisa PO dan diisikan ke form.
+  const qtyLama = {};
+  if (lama) {
+    for (const r of await q(sb.from('sj_masuk_detail').select('po_detail_id,qty').eq('sj_id', lama.id))) {
+      qtyLama[r.po_detail_id] = (qtyLama[r.po_detail_id] ?? 0) + Number(r.qty);
+    }
+  }
 
   const muatPO = async (poId) => {
     input = [];
     if (!poId) { wadah.replaceChildren(); return; }
     const detail = await q(sb.from('po_detail').select('*').eq('po_id', poId).order('urutan'));
-    const sisa = detail.filter((d) => Number(d.qty) > Number(d.qty_diterima));
-    input = sisa.map((d) => ({ d, el: h('input', { type: 'number', min: 0, max: Number(d.qty) - Number(d.qty_diterima), step: 'any', value: Number(d.qty) - Number(d.qty_diterima), class: 'input-angka', 'aria-label': 'Qty diterima' }) }));
+    const milik = (d) => (lama && poId === lama.po_id ? qtyLama[d.id] ?? 0 : 0);
+    const sisa = detail.filter((d) => Number(d.qty) - Number(d.qty_diterima) + milik(d) > 0);
+    input = sisa.map((d) => {
+      const bisa = Number(d.qty) - Number(d.qty_diterima) + milik(d);
+      return {
+        d, sudah: Number(d.qty_diterima) - milik(d),
+        el: h('input', { type: 'number', min: 0, max: bisa, step: 'any', value: lama && poId === lama.po_id ? milik(d) : bisa, class: 'input-angka', 'aria-label': 'Qty diterima' }),
+      };
+    });
     wadah.replaceChildren(tabel([
       { label: 'Barang', isi: (x) => namaBarang(m, x.d.barang_id) },
       { label: 'Dipesan', kelas: 'kanan', isi: (x) => `${angka(x.d.qty)} ${satuan(m, x.d.barang_id)}` },
-      { label: 'Sudah diterima', kelas: 'kanan', isi: (x) => angka(x.d.qty_diterima) },
+      { label: lama ? 'Diterima di SJ lain' : 'Sudah diterima', kelas: 'kanan', isi: (x) => angka(x.sudah) },
       { label: 'Diterima sekarang', kelas: 'kanan', isi: (x) => x.el },
     ], input, 'Semua barang di PO ini sudah diterima.'));
   };
@@ -179,7 +210,7 @@ async function formSJMasuk(ctx, poAwal) {
   if (poAwal) await muatPO(poAwal);
 
   formDokumen({
-    judul: 'Terima Barang (Surat Jalan Masuk)',
+    judul: lama ? `Edit Surat Jalan ${lama.nomor}` : 'Terima Barang (Surat Jalan Masuk)',
     badan: h('div', {},
       h('div', { class: 'form-grid form-grid-3' },
         isian('Purchase Order', po, { wajib: true }),
@@ -188,15 +219,17 @@ async function formSJMasuk(ctx, poAwal) {
         isian('Masuk ke Gudang', gudang, { wajib: true }),
         isian('Keterangan', ket, { penuh: true })),
       h('h3', {}, 'Barang diterima'),
-      wadah),
+      wadah,
+      lama?.faktur_id && h('p', { class: 'catatan' },
+        'Surat jalan ini sudah difakturkan. Baris faktur supplier-nya ikut diperbarui dengan harga faktur yang sama.')),
     kumpulkan: () => {
       const baris = input.map((x) => ({ po_detail_id: x.d.id, qty: Number(x.el.value || 0) })).filter((b) => b.qty > 0);
       if (!baris.length) throw new Error('Isi qty yang diterima minimal untuk satu barang.');
-      return { perusahaan_id: pid(), po_id: po.value, nomor: nomor.value, tanggal: tanggal.value, gudang_id: gudang.value, keterangan: ket.value || null, baris };
+      return { id: lama?.id, perusahaan_id: pid(), po_id: po.value, nomor: nomor.value, tanggal: tanggal.value, gudang_id: gudang.value, keterangan: ket.value || null, baris };
     },
     simpan: async (p) => {
       await rpc('simpan_sj_masuk', { p });
-      toast('Barang diterima. Stok dan HPP sudah diperbarui.');
+      toast(lama ? 'Perubahan surat jalan tersimpan. Stok sudah disesuaikan.' : 'Barang diterima. Stok dan HPP sudah diperbarui.');
       await m.muatUlang?.();
     },
   });
@@ -223,7 +256,14 @@ async function detailSJ(dok, ctx) {
     baris,
     aksi: [
       dok.status === 'aktif' && h('button', { class: 'tombol', onclick: () => { tutup(); formReturBeli(ctx, dok.id); } }, 'Retur ke Supplier'),
-      ...aksiKelola('surat_jalan_masuk', dok, { tutupDetail: () => tutup(), muatUlang: ctx.muatUlang }),
+      ...aksiKelola('surat_jalan_masuk', dok, {
+        tutupDetail: () => tutup(), muatUlang: ctx.muatUlang,
+        edit: async () => {
+          await cekTanpaLanjutan('retur_pembelian', 'sj_id', dok.id,
+            'Surat jalan ini punya retur pembelian. Batalkan returnya dulu sebelum mengedit surat jalan.');
+          await formSJMasuk(ctx, null, dok);
+        },
+      }),
     ],
   });
 }
@@ -248,13 +288,19 @@ export const halamanSJMasuk = halamanDaftar({
 // Faktur Supplier
 // ===================================================================
 
-function formFakturBeli(ctx) {
-  const tanggal = h('input', { type: 'date', value: hariIni(), required: true });
-  const jatuhTempo = h('input', { type: 'date', value: tambahHari(hariIni(), 30), required: true });
+// `lama`: faktur supplier yang diedit (tanpa itu, form membuat faktur baru).
+async function formFakturBeli(ctx, lama) {
+  // Harga, diskon, dan PPN faktur lama per baris surat jalan, untuk mengisi form edit.
+  const hargaLama = lama
+    ? Object.fromEntries((await q(sb.from('faktur_pembelian_detail').select('*').eq('faktur_id', lama.id))).map((r) => [r.sj_detail_id, r]))
+    : {};
+  const tanggal = h('input', { type: 'date', value: lama?.tanggal ?? hariIni(), required: true });
+  const jatuhTempo = h('input', { type: 'date', value: lama?.jatuh_tempo ?? tambahHari(hariIni(), 30), required: true });
   tanggal.addEventListener('change', () => { jatuhTempo.value = tambahHari(tanggal.value, 30); });
-  const nomor = h('input', { required: true, placeholder: 'Nomor faktur dari supplier' });
-  const ket = h('textarea', { rows: 2 });
+  const nomor = h('input', { required: true, placeholder: 'Nomor faktur dari supplier', value: lama?.nomor ?? '' });
+  const ket = h('textarea', { rows: 2 }, lama?.keterangan ?? '');
   const total = kotakTotal();
+  if (lama) total.isi(lama);
   const wadahSJ = h('div');
   const wadahBaris = h('div');
   let dipilih = new Set();
@@ -278,15 +324,16 @@ function formFakturBeli(ctx) {
     const pdMap = Object.fromEntries(pd.map((x) => [x.id, x]));
     baris = sd.map((x) => {
       const p = pdMap[x.po_detail_id];
+      const f = hargaLama[x.id];
       const inp = (v, kelas = 'input-angka') => {
-        const el = h('input', { type: 'number', min: 0, step: 'any', value: v, class: kelas });
+        const el = h('input', { type: 'number', min: 0, step: 'any', value: Number(v), class: kelas });
         el.addEventListener('input', hitung);
         return el;
       };
-      const harga = inp(p.harga);
-      const dp = inp(p.diskon_persen, 'input-pendek');
-      const dn = inp(Math.round(Number(p.diskon_nominal) * Number(x.qty) / Number(p.qty) * 100) / 100);
-      const pp = inp(p.ppn_persen, 'input-pendek');
+      const harga = inp(f ? f.harga : p.harga);
+      const dp = inp(f ? f.diskon_persen : p.diskon_persen, 'input-pendek');
+      const dn = inp(f ? f.diskon_nominal : Math.round(Number(p.diskon_nominal) * Number(x.qty) / Number(p.qty) * 100) / 100);
+      const pp = inp(f ? f.ppn_persen : p.ppn_persen, 'input-pendek');
       return {
         x, harga, dp, dn, pp, subEl: h('span'),
         data: () => ({ qty: x.qty, harga: harga.value, diskon_persen: dp.value, diskon_nominal: dn.value, ppn_persen: pp.value }),
@@ -304,24 +351,32 @@ function formFakturBeli(ctx) {
     hitung();
   };
 
+  const muatSJ = async () => {
+    // Saat edit, surat jalan faktur ini sendiri ikut ditampilkan dan sudah tercentang.
+    const sendiri = lama && supplier.value === lama.supplier_id;
+    let sj = [];
+    if (supplier.value) {
+      let qsj = sb.from('surat_jalan_masuk').select('*').eq('supplier_id', supplier.value).eq('status', 'aktif');
+      qsj = sendiri ? qsj.or(`faktur_id.is.null,faktur_id.eq.${lama.id}`) : qsj.is('faktur_id', null);
+      sj = await q(qsj.order('tanggal'));
+    }
+    dipilih = new Set(sendiri ? sj.filter((x) => x.faktur_id === lama.id).map((x) => x.id) : []);
+    await muatBaris();
+    if (!supplier.value) { wadahSJ.replaceChildren(); return; }
+    wadahSJ.replaceChildren(sj.length
+      ? h('div', { class: 'daftar-centang' }, sj.map((s) => h('label', { class: 'form-centang' },
+        h('input', { type: 'checkbox', checked: dipilih.has(s.id), onchange: (e) => { e.target.checked ? dipilih.add(s.id) : dipilih.delete(s.id); muatBaris().catch((er) => toast(er.message, 'error')); } }),
+        `${s.nomor} · ${tgl(s.tanggal)}`)))
+      : h('p', { class: 'catatan' }, 'Tidak ada surat jalan dari supplier ini yang belum difakturkan.'));
+  };
   const supplier = pilihan(opsi(ctx.supplier, false), {
-    kosong: 'Pilih supplier…', wajib: true,
-    onchange: async () => {
-      dipilih = new Set();
-      await muatBaris();
-      if (!supplier.value) { wadahSJ.replaceChildren(); return; }
-      const sj = await q(sb.from('surat_jalan_masuk').select('*').eq('supplier_id', supplier.value)
-        .eq('status', 'aktif').is('faktur_id', null).order('tanggal'));
-      wadahSJ.replaceChildren(sj.length
-        ? h('div', { class: 'daftar-centang' }, sj.map((s) => h('label', { class: 'form-centang' },
-          h('input', { type: 'checkbox', onchange: (e) => { e.target.checked ? dipilih.add(s.id) : dipilih.delete(s.id); muatBaris().catch((er) => toast(er.message, 'error')); } }),
-          `${s.nomor} · ${tgl(s.tanggal)}`)))
-        : h('p', { class: 'catatan' }, 'Tidak ada surat jalan dari supplier ini yang belum difakturkan.'));
-    },
+    kosong: 'Pilih supplier…', wajib: true, nilai: lama?.supplier_id ?? '',
+    onchange: () => muatSJ().catch((e) => toast(e.message, 'error')),
   });
+  if (lama) await muatSJ();
 
   formDokumen({
-    judul: 'Faktur Supplier Baru',
+    judul: lama ? `Edit Faktur Supplier ${lama.nomor}` : 'Faktur Supplier Baru',
     badan: h('div', {},
       h('div', { class: 'form-grid form-grid-3' },
         isian('Supplier', supplier, { wajib: true }),
@@ -337,14 +392,14 @@ function formFakturBeli(ctx) {
     kumpulkan: () => {
       if (!baris.length) throw new Error('Pilih minimal satu surat jalan.');
       return {
-        perusahaan_id: pid(), supplier_id: supplier.value, nomor: nomor.value, tanggal: tanggal.value, jatuh_tempo: jatuhTempo.value,
+        id: lama?.id, perusahaan_id: pid(), supplier_id: supplier.value, nomor: nomor.value, tanggal: tanggal.value, jatuh_tempo: jatuhTempo.value,
         keterangan: ket.value || null, sj_ids: [...dipilih], ...total.nilai(),
         baris: baris.map((b) => ({ sj_detail_id: b.x.id, ...b.data() })),
       };
     },
     simpan: async (p) => {
       await rpc('simpan_faktur_pembelian', { p });
-      toast('Faktur supplier tersimpan.');
+      toast(lama ? 'Perubahan faktur supplier tersimpan.' : 'Faktur supplier tersimpan.');
       await ctx.muatUlang();
     },
   });
@@ -380,7 +435,9 @@ async function detailFakturBeli(dok, ctx) {
       Number(dok.ppn_total) && ['PPN', rupiah(dok.ppn_total)],
       ['Total', rupiah(dok.total), true],
     ],
-    aksi: aksiKelola('faktur_pembelian', dok, { tutupDetail: () => tutup(), muatUlang: ctx.muatUlang, jatuhTempo: true }),
+    aksi: aksiKelola('faktur_pembelian', dok, {
+      tutupDetail: () => tutup(), muatUlang: ctx.muatUlang, jatuhTempo: true, edit: () => formFakturBeli(ctx, dok),
+    }),
   });
 }
 
@@ -403,27 +460,44 @@ export const halamanFakturBeli = halamanDaftar({
 // Retur Pembelian
 // ===================================================================
 
-async function formReturBeli(ctx, sjAwal) {
+// `lama`: retur yang diedit (tanpa itu, form membuat retur baru).
+async function formReturBeli(ctx, sjAwal, lama) {
   const m = ctx.poMap ? ctx : { ...(await siapkanSJ()), muatUlang: ctx.muatUlang };
-  const tanggal = h('input', { type: 'date', value: hariIni(), required: true });
-  const ket = h('textarea', { rows: 2, placeholder: 'Alasan retur' });
+  if (lama) sjAwal = lama.sj_id;
+  const tanggal = h('input', { type: 'date', value: lama?.tanggal ?? hariIni(), required: true });
+  const ket = h('textarea', { rows: 2, placeholder: 'Alasan retur' }, lama?.keterangan ?? '');
   const wadah = h('div');
   let input = [];
+  const qtyLama = {};
+  if (lama) {
+    for (const r of await q(sb.from('retur_pembelian_detail').select('sj_detail_id,qty').eq('retur_id', lama.id))) {
+      qtyLama[r.sj_detail_id] = (qtyLama[r.sj_detail_id] ?? 0) + Number(r.qty);
+    }
+  }
 
-  const sjAktif = await q(sb.from('surat_jalan_masuk').select('id,nomor,tanggal,supplier_id').eq('perusahaan_id', pid())
+  const kolomSJ = 'id,nomor,tanggal,supplier_id';
+  const sjAktif = await q(sb.from('surat_jalan_masuk').select(kolomSJ).eq('perusahaan_id', pid())
     .eq('status', 'aktif').order('tanggal', { ascending: false }).limit(300));
+  if (sjAwal && !sjAktif.some((x) => x.id === sjAwal)) sjAktif.push(...await q(sb.from('surat_jalan_masuk').select(kolomSJ).eq('id', sjAwal)));
 
   const muatSJ = async (sjId) => {
     input = [];
     if (!sjId) { wadah.replaceChildren(); return; }
+    const milikLama = lama && sjId === lama.sj_id;
     const [sd, retur] = await Promise.all([
       q(sb.from('sj_masuk_detail').select('*').eq('sj_id', sjId)),
-      q(sb.from('retur_pembelian').select('id').eq('sj_id', sjId).eq('status', 'aktif')),
+      q(sb.from('retur_pembelian').select('id').eq('sj_id', sjId).eq('status', 'aktif').neq('id', lama?.id ?? '00000000-0000-0000-0000-000000000000')),
     ]);
     const rd = retur.length ? await q(sb.from('retur_pembelian_detail').select('sj_detail_id,qty').in('retur_id', retur.map((r) => r.id))) : [];
     const sudah = {};
     for (const r of rd) sudah[r.sj_detail_id] = (sudah[r.sj_detail_id] ?? 0) + Number(r.qty);
-    input = sd.map((d) => ({ d, sudah: sudah[d.id] ?? 0, el: h('input', { type: 'number', min: 0, max: Number(d.qty) - (sudah[d.id] ?? 0), step: 'any', class: 'input-angka', 'aria-label': 'Qty retur' }) }));
+    input = sd.map((d) => ({
+      d, sudah: sudah[d.id] ?? 0,
+      el: h('input', {
+        type: 'number', min: 0, max: Number(d.qty) - (sudah[d.id] ?? 0), step: 'any', class: 'input-angka', 'aria-label': 'Qty retur',
+        value: milikLama && qtyLama[d.id] ? qtyLama[d.id] : null,
+      }),
+    }));
     wadah.replaceChildren(tabel([
       { label: 'Barang', isi: (x) => namaBarang(m, x.d.barang_id) },
       { label: 'Diterima', kelas: 'kanan', isi: (x) => `${angka(x.d.qty)} ${satuan(m, x.d.barang_id)}` },
@@ -439,7 +513,7 @@ async function formReturBeli(ctx, sjAwal) {
   if (sjAwal) await muatSJ(sjAwal);
 
   formDokumen({
-    judul: 'Retur Pembelian',
+    judul: lama ? `Edit Retur ${lama.nomor}` : 'Retur Pembelian',
     badan: h('div', {},
       h('div', { class: 'form-grid form-grid-3' },
         isian('Surat Jalan Masuk', sj, { wajib: true }),
@@ -451,11 +525,11 @@ async function formReturBeli(ctx, sjAwal) {
     kumpulkan: () => {
       const baris = input.map((x) => ({ sj_detail_id: x.d.id, qty: Number(x.el.value || 0) })).filter((b) => b.qty > 0);
       if (!baris.length) throw new Error('Isi qty retur minimal untuk satu barang.');
-      return { perusahaan_id: pid(), sj_id: sj.value, tanggal: tanggal.value, keterangan: ket.value || null, baris };
+      return { id: lama?.id, perusahaan_id: pid(), sj_id: sj.value, tanggal: tanggal.value, keterangan: ket.value || null, baris };
     },
     simpan: async (p) => {
       await rpc('simpan_retur_pembelian', { p });
-      toast('Retur pembelian tersimpan. Stok sudah dikurangi.');
+      toast(lama ? 'Perubahan retur tersimpan. Stok sudah disesuaikan.' : 'Retur pembelian tersimpan. Stok sudah dikurangi.');
       await m.muatUlang?.();
     },
   });
@@ -481,7 +555,9 @@ async function detailReturBeli(dok, ctx) {
     ],
     baris,
     ringkasan: [['Nilai retur', rupiah(dok.total), true]],
-    aksi: aksiKelola('retur_pembelian', dok, { tutupDetail: () => tutup(), muatUlang: ctx.muatUlang }),
+    aksi: aksiKelola('retur_pembelian', dok, {
+      tutupDetail: () => tutup(), muatUlang: ctx.muatUlang, edit: () => formReturBeli(ctx, null, dok),
+    }),
   });
 }
 

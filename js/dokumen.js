@@ -45,8 +45,21 @@ export async function muatMaster(...jenis) {
   return hasil;
 }
 export const namaKode = (r) => (r ? `${r.kode} · ${r.nama}` : '-');
-export const opsi = (daftar, hanyaAktif = true) =>
-  daftar.filter((r) => !hanyaAktif || r.aktif).map((r) => ({ value: r.id, label: namaKode(r) }));
+// `termasuk`: id yang tetap ditampilkan walau sudah nonaktif (dipakai dokumen yang sedang diedit).
+export const opsi = (daftar, hanyaAktif = true, termasuk = []) => {
+  const ikut = new Set([termasuk].flat().filter(Boolean));
+  return daftar.filter((r) => !hanyaAktif || r.aktif || ikut.has(r.id)).map((r) => ({ value: r.id, label: namaKode(r) }));
+};
+// Barang yang boleh dipilih: yang aktif, ditambah barang yang sudah ada di dokumen yang diedit.
+export const barangPilihan = (daftar, rows = []) => {
+  const ikut = new Set(rows.map((r) => r.barang_id));
+  return daftar.filter((b) => b.aktif || ikut.has(b.id));
+};
+// Dokumen tidak bisa diedit bila masih punya dokumen lanjutan yang aktif.
+export async function cekTanpaLanjutan(tabelLanjutan, kolom, id, pesan) {
+  const ada = await q(sb.from(tabelLanjutan).select('id').eq(kolom, id).eq('status', 'aktif').limit(1));
+  if (ada.length) throw new Error(pesan);
+}
 
 export async function stokGudang(gudangId) {
   const rows = await q(sb.from('stok_gudang').select('barang_id,qty').eq('gudang_id', gudangId));
@@ -147,10 +160,16 @@ export function bukaDetail({ judul, dok, info, kolom, baris, ringkasan = [], aks
   return modal(`${judul} ${dok.nomor}`, isi, { lebar: true });
 }
 
-// Tombol standar untuk Owner/Admin: ubah tanggal/keterangan dan batalkan.
-export function aksiKelola(namaTabel, dok, { tutupDetail, muatUlang, jatuhTempo = false }) {
+// Tombol standar untuk Owner/Admin: edit isi dokumen, ubah tanggal/keterangan, dan batalkan.
+// `edit()` membuka form dokumen berisi data lama (bila dokumen ini bisa diedit penuh).
+export function aksiKelola(namaTabel, dok, { tutupDetail, muatUlang, jatuhTempo = false, edit }) {
   if (!isKelola() || dok.status === 'batal') return [];
   return [
+    edit && h('button', {
+      class: 'tombol tombol-utama', onclick: async () => {
+        try { await edit(); tutupDetail(); } catch (err) { toast(err.message, 'error'); }
+      },
+    }, 'Edit'),
     h('button', {
       class: 'tombol', onclick: () => bukaForm({
         judul: `Ubah Info ${dok.nomor}`,
@@ -245,6 +264,10 @@ export function pilihKetik(daftarOpsi, { placeholder = 'Ketik untuk mencari…',
   return {
     el: h('div', {}, input, h('datalist', { id: idList }, daftarOpsi.map((o) => h('option', { value: o.label })))),
     nilai: () => peta.get(input.value.trim()) ?? '',
+    setNilai(id) {
+      input.value = daftarOpsi.find((o) => String(o.value) === String(id))?.label ?? '';
+      cek();
+    },
   };
 }
 
@@ -271,7 +294,7 @@ export function editorBaris({ barang, hargaAwal = (b) => b.harga_jual, infoBaran
     onUbah?.(sub);
   };
 
-  const tambah = () => {
+  const tambah = (awal) => {
     const pilih = h('input', { list: idList, placeholder: 'Ketik kode atau nama barang…', 'aria-label': 'Barang', class: 'input-barang' });
     const info = h('small', { class: 'info-barang' });
     const qty = h('input', { type: 'number', min: 0, step: 'any', 'aria-label': 'Qty', class: 'input-qty' });
@@ -297,6 +320,16 @@ export function editorBaris({ barang, hargaAwal = (b) => b.harga_jual, infoBaran
       hitungUlang();
     });
     for (const el of [qty, harga, dp, dn, pp]) el.addEventListener('input', hitungUlang);
+    if (awal) {
+      const b = barang.find((x) => x.id === awal.barang_id);
+      pilih.value = b ? namaKode(b) : '';
+      info.textContent = b ? (infoBarang?.(b) ?? b.satuan) : '';
+      qty.value = Number(awal.qty ?? 0);
+      harga.value = Number(awal.harga ?? 0);
+      if (Number(awal.diskon_persen)) dp.value = Number(awal.diskon_persen);
+      if (Number(awal.diskon_nominal)) dn.value = Number(awal.diskon_nominal);
+      if (Number(awal.ppn_persen)) pp.value = Number(awal.ppn_persen);
+    }
     const tr = h('tr', {},
       h('td', { 'data-label': 'Barang' }, pilih, info),
       h('td', { 'data-label': 'Qty', class: 'kanan' }, qty),
@@ -330,6 +363,14 @@ export function editorBaris({ barang, hargaAwal = (b) => b.harga_jual, infoBaran
 
   return {
     el,
+    // Isi ulang editor dengan baris dokumen yang sudah ada (untuk edit).
+    isi(rows) {
+      baris.splice(0);
+      tbody.replaceChildren();
+      for (const row of rows) tambah(row);
+      if (!rows.length) tambah();
+      hitungUlang();
+    },
     // Ambil baris yang terisi; lempar error bila ada yang tidak valid.
     ambil() {
       const hasil = [];
@@ -363,6 +404,7 @@ export function kotakTotal() {
       h('div', {}, h('span', {}, 'Total'), total)),
     setSubtotal(n) { sub = n; hitung(); },
     nilai: () => ({ diskon_total: Number(diskon.value || 0), ppn_total: Number(ppn.value || 0) }),
+    isi(d) { diskon.value = Number(d.diskon_total || 0); ppn.value = Number(d.ppn_total || 0); hitung(); },
   };
 }
 

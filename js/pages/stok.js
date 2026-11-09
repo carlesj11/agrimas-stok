@@ -3,7 +3,7 @@ import { pid, isKelola } from '../state.js';
 import { h, tabel, toast, angka, rupiah } from '../ui.js';
 import {
   halamanDaftar, bukaDetail, aksiKelola, formDokumen, isian, pilihan, editorBaris, muatMaster,
-  namaKode, opsi, rpc, hariIni, awalBulan, tgl, stokGudang,
+  namaKode, opsi, rpc, hariIni, awalBulan, tgl, stokGudang, barangPilihan,
 } from '../dokumen.js';
 
 const satuan = (m, id) => m.barangMap[id]?.satuan ?? '';
@@ -81,12 +81,20 @@ const JENIS_PENYESUAIAN = [
   { value: 'lainnya', label: 'Penyesuaian lain (rusak, hilang, dll)' },
 ];
 
-async function formPenyesuaian(ctx) {
+// `lama`: penyesuaian yang diedit (tanpa itu, form membuat penyesuaian baru).
+async function formPenyesuaian(ctx, lama) {
   const gudangAktif = ctx.gudang.filter((g) => g.aktif);
-  if (!gudangAktif.length) { toast('Buat gudang dulu di menu Gudang.', 'error'); return; }
-  const barangAktif = ctx.barang.filter((b) => b.aktif);
+  if (!gudangAktif.length && !lama) { toast('Buat gudang dulu di menu Gudang.', 'error'); return; }
+  const rowsLama = lama ? await q(sb.from('penyesuaian_stok_detail').select('*').eq('penyesuaian_id', lama.id)) : [];
+  const barangAktif = barangPilihan(ctx.barang, rowsLama);
   const peta = new Map(barangAktif.map((b) => [namaKode(b), b]));
-  let stok = await stokGudang(gudangAktif[0].id);
+  // Saat edit, stok sistem dihitung tanpa pengaruh penyesuaian ini sendiri.
+  const muatStok = async (gid) => {
+    const st = await stokGudang(gid);
+    if (lama && gid === lama.gudang_id) for (const r of rowsLama) st[r.barang_id] = (st[r.barang_id] ?? 0) - Number(r.selisih);
+    return st;
+  };
+  let stok = await muatStok(lama?.gudang_id ?? gudangAktif[0].id);
 
   const tbody = h('tbody');
   const thead = h('thead');
@@ -98,11 +106,15 @@ async function formPenyesuaian(ctx) {
     lainnya: ['Barang', 'Stok sistem', 'Tambah / kurang (±)', 'HPP / unit bila tambah'],
   }[jenis.value]);
 
-  const tambahBaris = (b) => {
+  const tambahBaris = (b, awal) => {
     const pilih = h('input', { list: 'dl-penyesuaian', placeholder: 'Ketik kode atau nama…', class: 'input-barang', 'aria-label': 'Barang', value: b ? namaKode(b) : '' });
     const sistem = h('span');
     const angka1 = h('input', { type: 'number', step: 'any', class: 'input-angka', 'aria-label': 'Qty' });
     const angka2 = h('input', { type: 'number', min: 0, step: 'any', class: 'input-angka', 'aria-label': 'HPP' });
+    if (awal) {
+      angka1.value = Number(jenis.value === 'opname' ? awal.qty_fisik : awal.selisih);
+      if (Number(awal.selisih) > 0) angka2.value = Number(awal.hpp);
+    }
     const selisih = h('span');
     const r = {
       barang: () => peta.get(pilih.value.trim()), pilih, angka1, angka2,
@@ -136,17 +148,24 @@ async function formPenyesuaian(ctx) {
     tambahBaris();
   };
 
-  const jenis = pilihan(JENIS_PENYESUAIAN, { onchange: susunUlang });
-  const gudang = pilihan(opsi(ctx.gudang), {
+  const jenis = pilihan(JENIS_PENYESUAIAN, { onchange: susunUlang, nilai: lama?.jenis ?? 'stok_awal' });
+  const gudang = pilihan(opsi(ctx.gudang, true, lama?.gudang_id), {
     wajib: true,
-    onchange: async () => { stok = await stokGudang(gudang.value); baris.forEach((r) => r.segarkan()); },
+    nilai: lama?.gudang_id ?? '',
+    onchange: async () => { stok = await muatStok(gudang.value); baris.forEach((r) => r.segarkan()); },
   });
-  const tanggal = h('input', { type: 'date', value: hariIni(), required: true });
-  const ket = h('textarea', { rows: 2 });
+  const tanggal = h('input', { type: 'date', value: lama?.tanggal ?? hariIni(), required: true });
+  const ket = h('textarea', { rows: 2 }, lama?.keterangan ?? '');
   susunUlang();
+  if (lama) {
+    tbody.replaceChildren();
+    baris = [];
+    for (const r of rowsLama) tambahBaris(ctx.barangMap[r.barang_id], r);
+    if (!rowsLama.length) tambahBaris();
+  }
 
   formDokumen({
-    judul: 'Stok Awal / Penyesuaian',
+    judul: lama ? `Edit Penyesuaian ${lama.nomor}` : 'Stok Awal / Penyesuaian',
     badan: h('div', {},
       h('div', { class: 'form-grid form-grid-3' },
         isian('Jenis', jenis, { wajib: true }),
@@ -180,11 +199,11 @@ async function formPenyesuaian(ctx) {
         }
       }
       if (!hasil.length) throw new Error('Isi minimal satu barang.');
-      return { perusahaan_id: pid(), jenis: jenis.value, gudang_id: gudang.value, tanggal: tanggal.value, keterangan: ket.value || null, baris: hasil };
+      return { id: lama?.id, perusahaan_id: pid(), jenis: jenis.value, gudang_id: gudang.value, tanggal: tanggal.value, keterangan: ket.value || null, baris: hasil };
     },
     simpan: async (p) => {
       await rpc('simpan_penyesuaian', { p });
-      toast('Penyesuaian stok tersimpan.');
+      toast(lama ? 'Perubahan penyesuaian tersimpan. Stok sudah disesuaikan.' : 'Penyesuaian stok tersimpan.');
       await ctx.muatUlang();
     },
   });
@@ -209,7 +228,9 @@ async function detailPenyesuaian(dok, ctx) {
       { label: 'HPP/unit', kelas: 'kanan', isi: (r) => rupiah(r.hpp) },
     ],
     baris,
-    aksi: aksiKelola('penyesuaian_stok', dok, { tutupDetail: () => tutup(), muatUlang: ctx.muatUlang }),
+    aksi: aksiKelola('penyesuaian_stok', dok, {
+      tutupDetail: () => tutup(), muatUlang: ctx.muatUlang, edit: () => formPenyesuaian(ctx, dok),
+    }),
   });
 }
 
@@ -231,25 +252,34 @@ export const halamanPenyesuaian = halamanDaftar({
 // Pindah Gudang
 // ===================================================================
 
-async function formTransfer(ctx) {
+// `lama`: pemindahan yang diedit (tanpa itu, form membuat pemindahan baru).
+async function formTransfer(ctx, lama) {
   const aktif = ctx.gudang.filter((g) => g.aktif);
-  if (aktif.length < 2) { toast('Butuh minimal dua gudang aktif.', 'error'); return; }
-  let stok = await stokGudang(aktif[0].id);
+  if (aktif.length < 2 && !lama) { toast('Butuh minimal dua gudang aktif.', 'error'); return; }
+  const rowsLama = lama ? await q(sb.from('transfer_gudang_detail').select('*').eq('transfer_id', lama.id)) : [];
+  // Saat edit, qty pemindahan ini sendiri ikut dihitung sebagai stok tersedia di gudang asalnya.
+  const muatStok = async (gid) => {
+    const st = await stokGudang(gid);
+    if (lama && gid === lama.gudang_asal) for (const r of rowsLama) st[r.barang_id] = (st[r.barang_id] ?? 0) + Number(r.qty);
+    return st;
+  };
+  let stok = await muatStok(lama?.gudang_asal ?? aktif[0].id);
   const editor = editorBaris({
-    barang: ctx.barang.filter((b) => b.aktif),
+    barang: barangPilihan(ctx.barang, rowsLama),
     denganHarga: false,
     infoBarang: (b) => `Stok di gudang asal: ${angka(stok[b.id] ?? 0)} ${b.satuan}`,
   });
-  const asal = pilihan(opsi(ctx.gudang), {
-    wajib: true, nilai: aktif[0].id,
-    onchange: async () => { stok = await stokGudang(asal.value); editor.el.querySelectorAll('.input-barang').forEach((i) => i.dispatchEvent(new Event('change'))); },
+  const asal = pilihan(opsi(ctx.gudang, true, lama?.gudang_asal), {
+    wajib: true, nilai: lama?.gudang_asal ?? aktif[0].id,
+    onchange: async () => { stok = await muatStok(asal.value); editor.el.querySelectorAll('.input-barang').forEach((i) => i.dispatchEvent(new Event('change'))); },
   });
-  const tujuan = pilihan(opsi(ctx.gudang), { wajib: true, nilai: aktif[1].id });
-  const tanggal = h('input', { type: 'date', value: hariIni(), required: true });
-  const ket = h('textarea', { rows: 2 });
+  const tujuan = pilihan(opsi(ctx.gudang, true, lama?.gudang_tujuan), { wajib: true, nilai: lama?.gudang_tujuan ?? aktif[1].id });
+  const tanggal = h('input', { type: 'date', value: lama?.tanggal ?? hariIni(), required: true });
+  const ket = h('textarea', { rows: 2 }, lama?.keterangan ?? '');
+  if (lama) editor.isi(rowsLama);
 
   formDokumen({
-    judul: 'Pindah Barang Antar Gudang',
+    judul: lama ? `Edit Pindah Gudang ${lama.nomor}` : 'Pindah Barang Antar Gudang',
     badan: h('div', {},
       h('div', { class: 'form-grid form-grid-3' },
         isian('Dari Gudang', asal, { wajib: true }),
@@ -260,11 +290,11 @@ async function formTransfer(ctx) {
       editor.el),
     kumpulkan: () => {
       if (asal.value === tujuan.value) throw new Error('Gudang asal dan tujuan harus berbeda.');
-      return { perusahaan_id: pid(), gudang_asal: asal.value, gudang_tujuan: tujuan.value, tanggal: tanggal.value, keterangan: ket.value || null, baris: editor.ambil() };
+      return { id: lama?.id, perusahaan_id: pid(), gudang_asal: asal.value, gudang_tujuan: tujuan.value, tanggal: tanggal.value, keterangan: ket.value || null, baris: editor.ambil() };
     },
     simpan: async (p) => {
       await rpc('simpan_transfer', { p });
-      toast('Barang dipindahkan.');
+      toast(lama ? 'Perubahan pemindahan tersimpan. Stok sudah disesuaikan.' : 'Barang dipindahkan.');
       await ctx.muatUlang();
     },
   });
@@ -286,7 +316,9 @@ async function detailTransfer(dok, ctx) {
       { label: 'Qty', kelas: 'kanan', isi: (r) => `${angka(r.qty)} ${satuan(ctx, r.barang_id)}` },
     ],
     baris,
-    aksi: aksiKelola('transfer_gudang', dok, { tutupDetail: () => tutup(), muatUlang: ctx.muatUlang }),
+    aksi: aksiKelola('transfer_gudang', dok, {
+      tutupDetail: () => tutup(), muatUlang: ctx.muatUlang, edit: () => formTransfer(ctx, dok),
+    }),
   });
 }
 

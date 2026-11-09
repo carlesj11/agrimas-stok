@@ -29,7 +29,7 @@ Aplikasi web manajemen stok untuk beberapa anak perusahaan. Setiap perusahaan pu
 | Menghapus data master | Ya | Ya | - |
 | Membuat PO, surat jalan, faktur, retur, pindah gudang | Ya | Ya | Ya |
 | Stok awal dan stock opname | Ya | Ya | - |
-| Mengubah tanggal atau membatalkan dokumen | Ya | Ya | - |
+| Mengedit isi, mengubah tanggal, atau membatalkan dokumen | Ya | Ya | - |
 | Mengatur format penomoran | Ya | Ya | - |
 
 Aturan ini dijaga di database (Row Level Security), bukan hanya di tampilan.
@@ -37,7 +37,7 @@ Aturan ini dijaga di database (Row Level Security), bukan hanya di tampilan.
 ## Setup Supabase (sekali saja)
 
 1. **Matikan konfirmasi email.** Supabase → Authentication → Sign In / Providers → Email → matikan **Confirm email** → Save. Login memakai username, jadi tidak ada email sungguhan yang bisa dikonfirmasi.
-2. **Buat struktur database.** Supabase → SQL Editor → New query → tempel seluruh isi [`supabase/001_fondasi.sql`](supabase/001_fondasi.sql) → Run. Script ini juga membuat perusahaan pertama, CV Prima Agro Perkasa (PAP). Lalu ulangi dengan [`supabase/002_transaksi.sql`](supabase/002_transaksi.sql), [`supabase/003_laporan.sql`](supabase/003_laporan.sql), [`supabase/004_faktur.sql`](supabase/004_faktur.sql), dan [`supabase/005_tanpa_batal.sql`](supabase/005_tanpa_batal.sql), masing-masing di query baru. Jalankan setiap file sekali saja, berurutan.
+2. **Buat struktur database.** Supabase → SQL Editor → New query → tempel seluruh isi [`supabase/001_fondasi.sql`](supabase/001_fondasi.sql) → Run. Script ini juga membuat perusahaan pertama, CV Prima Agro Perkasa (PAP). Lalu ulangi dengan [`supabase/002_transaksi.sql`](supabase/002_transaksi.sql), [`supabase/003_laporan.sql`](supabase/003_laporan.sql), [`supabase/004_faktur.sql`](supabase/004_faktur.sql), [`supabase/005_tanpa_batal.sql`](supabase/005_tanpa_batal.sql), dan [`supabase/006_edit_dokumen.sql`](supabase/006_edit_dokumen.sql), masing-masing di query baru. Jalankan setiap file sekali saja, berurutan.
 3. **Buat akun Owner.** Supabase → Authentication → Users → Add user → Create new user:
    - Email: `<username>@agrimas-stok.app`, misalnya `carles@agrimas-stok.app`
    - Password: bebas (minimal 6 karakter)
@@ -87,6 +87,7 @@ supabase/*.sql          struktur database, dijalankan berurutan
 - Stok tidak boleh minus. Penjualan, retur pembelian, dan pindah gudang ditolak bila stok di gudang tidak cukup.
 - Dokumen tidak pernah dihapus. Pembatalan membuat baris pembalik di kartu stok.
 - Mengubah tanggal dokumen tidak menghitung ulang HPP mundur.
+- Mengedit isi dokumen (barang, qty, harga) melepas pergerakan stok lamanya lalu mencatat ulang dengan nomor yang sama. HPP tidak dihitung ulang mundur, dan stok tidak boleh menjadi minus. Dokumen yang sudah punya retur (atau PO yang sudah punya surat jalan) harus dilepas dulu dari dokumen lanjutannya.
 - Laporan stok per tanggal menghitung qty dari kartu stok; nilai persediaannya memakai HPP rata-rata saat ini.
 
 ## Cetakan faktur penjualan
