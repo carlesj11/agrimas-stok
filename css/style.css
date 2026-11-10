@@ -327,3 +327,7 @@ tbody tr:hover { background: #fafcfa; }
   .lap-detail td::before { content: none; }
 }
 .logo-kecil { max-height: 28px; max-width: 60px; display: block; }
+
+/* Isian teks dokumen tersimpan dengan huruf kapital (lihat 008_huruf_kapital.sql), jadi tampil kapital sejak diketik */
+.form-dokumen input:not([type]):not([list]), .form-dokumen textarea { text-transform: uppercase; }
+.form-dokumen input::placeholder, .form-dokumen textarea::placeholder { text-transform: none; }

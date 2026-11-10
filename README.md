@@ -37,7 +37,7 @@ Aturan ini dijaga di database (Row Level Security), bukan hanya di tampilan.
 ## Setup Supabase (sekali saja)
 
 1. **Matikan konfirmasi email.** Supabase → Authentication → Sign In / Providers → Email → matikan **Confirm email** → Save. Login memakai username, jadi tidak ada email sungguhan yang bisa dikonfirmasi.
-2. **Buat struktur database.** Supabase → SQL Editor → New query → tempel seluruh isi [`supabase/001_fondasi.sql`](supabase/001_fondasi.sql) → Run. Script ini juga membuat perusahaan pertama, CV Prima Agro Perkasa (PAP). Lalu ulangi dengan [`supabase/002_transaksi.sql`](supabase/002_transaksi.sql), [`supabase/003_laporan.sql`](supabase/003_laporan.sql), [`supabase/004_faktur.sql`](supabase/004_faktur.sql), [`supabase/005_tanpa_batal.sql`](supabase/005_tanpa_batal.sql), [`supabase/006_edit_dokumen.sql`](supabase/006_edit_dokumen.sql), dan [`supabase/007_pembelian_sementara.sql`](supabase/007_pembelian_sementara.sql), masing-masing di query baru. Jalankan setiap file sekali saja, berurutan.
+2. **Buat struktur database.** Supabase → SQL Editor → New query → tempel seluruh isi [`supabase/001_fondasi.sql`](supabase/001_fondasi.sql) → Run. Script ini juga membuat perusahaan pertama, CV Prima Agro Perkasa (PAP). Lalu ulangi dengan [`supabase/002_transaksi.sql`](supabase/002_transaksi.sql), [`supabase/003_laporan.sql`](supabase/003_laporan.sql), [`supabase/004_faktur.sql`](supabase/004_faktur.sql), [`supabase/005_tanpa_batal.sql`](supabase/005_tanpa_batal.sql), [`supabase/006_edit_dokumen.sql`](supabase/006_edit_dokumen.sql), [`supabase/007_pembelian_sementara.sql`](supabase/007_pembelian_sementara.sql), dan [`supabase/008_huruf_kapital.sql`](supabase/008_huruf_kapital.sql), masing-masing di query baru. Jalankan setiap file sekali saja, berurutan.
 3. **Buat akun Owner.** Supabase → Authentication → Users → Add user → Create new user:
    - Email: `<username>@agrimas-stok.app`, misalnya `carles@agrimas-stok.app`
    - Password: bebas (minimal 6 karakter)
@@ -89,6 +89,7 @@ supabase/*.sql          struktur database, dijalankan berurutan
 - Mengubah tanggal dokumen tidak menghitung ulang HPP mundur.
 - Mengedit isi dokumen (barang, qty, harga) melepas pergerakan stok lamanya lalu mencatat ulang dengan nomor yang sama. HPP tidak dihitung ulang mundur, dan stok tidak boleh menjadi minus. Dokumen yang sudah punya retur (atau PO yang sudah punya surat jalan) harus dilepas dulu dari dokumen lanjutannya.
 - Pembelian sementara mencatat barang dari mitra tanpa pembelian: stok bertambah, tetapi tidak masuk laporan pembelian. Bila barangnya kemudian dibeli resmi, catat pembeliannya lalu edit pembelian sementaranya. Laporan "Sisa Pembelian Sementara" menampilkan yang masih tercatat.
+- Nomor, keterangan, dan isian teks lain di semua dokumen disimpan dengan huruf kapital (trigger di database), walau diketik dengan huruf kecil.
 - Laporan stok per tanggal menghitung qty dari kartu stok; nilai persediaannya memakai HPP rata-rata saat ini.
 
 ## Cetakan faktur penjualan
