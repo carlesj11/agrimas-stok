@@ -6,7 +6,7 @@
 --
 -- Nomor, keterangan, alasan batal, dan isian teks lain di setiap dokumen (PO, surat jalan,
 -- faktur, retur, penyesuaian, pindah gudang, pembelian sementara) otomatis diubah ke huruf
--- kapital saat disimpan atau diedit, walau diketik dengan huruf kecil. Kartu stok ikut
+-- kapital (spasi di awal/akhir dibuang) saat disimpan atau diedit, walau diketik dengan huruf kecil. Kartu stok ikut
 -- memakai nomor yang sama. Dokumen yang sudah tersimpan sebelumnya tidak diubah.
 -- Isian pilihan sistem (status, jenis, jenis bayar) tidak ikut diubah.
 -- =====================================================================
@@ -19,7 +19,7 @@ declare
 begin
   foreach k in array tg_argv loop
     if jsonb_typeof(j -> k) = 'string' then
-      j := jsonb_set(j, array[k], to_jsonb(upper(j ->> k)));
+      j := jsonb_set(j, array[k], to_jsonb(upper(btrim(j ->> k))));
     end if;
   end loop;
   return jsonb_populate_record(new, j);

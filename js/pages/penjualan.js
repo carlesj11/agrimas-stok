@@ -3,7 +3,7 @@ import { pid } from '../state.js';
 import { h, tabel, toast, angka, rupiah } from '../ui.js';
 import {
   halamanDaftar, bukaDetail, aksiKelola, formDokumen, isian, pilihan, pilihKetik, editorBaris, kotakTotal, muatMaster,
-  namaKode, opsi, rpc, hariIni, tambahHari, tgl, stokGudang, barangPilihan, cekTanpaLanjutan,
+  namaKode, opsi, rpc, hariIni, tambahHari, tgl, stokGudang, barangPilihan, cekTanpaLanjutan, cekNomorGanda,
 } from '../dokumen.js';
 import { cetakFakturJual } from '../cetak-faktur.js';
 
@@ -65,7 +65,7 @@ async function formFakturJual(ctx, lama) {
         isian('Tanggal Faktur', tanggal, { wajib: true }),
         isian('Jatuh Tempo', jatuhTempo, { wajib: true, hint: 'Otomatis 30 hari dari tanggal faktur.' }),
         isian('Pembayaran', bayar),
-        isian('Nomor Faktur', nomor, { hint: 'Untuk faktur tulis dari sales, ketik nomornya di sini.' }),
+        isian('Nomor Faktur', cekNomorGanda(nomor, 'faktur_penjualan', lama?.id), { hint: 'Untuk faktur tulis dari sales, ketik nomornya di sini.' }),
         isian('Keterangan', ket, { penuh: true })),
       h('h3', {}, 'Barang'),
       editor.el,

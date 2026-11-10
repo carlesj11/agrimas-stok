@@ -50,6 +50,34 @@ export const opsi = (daftar, hanyaAktif = true, termasuk = []) => {
   const ikut = new Set([termasuk].flat().filter(Boolean));
   return daftar.filter((r) => !hanyaAktif || r.aktif || ikut.has(r.id)).map((r) => ({ value: r.id, label: namaKode(r) }));
 };
+// Peringatan langsung di form bila nomor yang diketik sudah dipakai dokumen lain di `tabel`
+// (huruf besar/kecil tidak dibedakan). Form tidak bisa disimpan selama nomornya bentrok.
+// Database tetap menolak nomor ganda (009_nomor_unik.sql); ini supaya ketahuan sebelum menyimpan.
+export function cekNomorGanda(input, tabel, idSendiri = null) {
+  const pesan = h('small', { class: 'form-error', hidden: true });
+  let urutan = 0;
+  const cek = async () => {
+    const nomor = input.value.trim();
+    const ke = ++urutan;
+    input.setCustomValidity('');
+    pesan.hidden = true;
+    if (!nomor) return;
+    const pola = nomor.replace(/[\\%_]/g, (c) => `\\${c}`);
+    let query = sb.from(tabel).select('id,nomor,tanggal,status').eq('perusahaan_id', pid()).ilike('nomor', pola).limit(5);
+    if (idSendiri) query = query.neq('id', idSendiri);
+    const ada = (await q(query)).find((r) => r.nomor.trim().toUpperCase() === nomor.toUpperCase());
+    if (ke !== urutan || !ada) return;
+    const teks = `Nomor ${ada.nomor} sudah dipakai (tanggal ${tgl(ada.tanggal)}${ada.status === 'batal' ? ', sudah dibatalkan' : ''}). Gunakan nomor lain.`;
+    input.setCustomValidity(teks);
+    pesan.textContent = teks;
+    pesan.hidden = false;
+  };
+  let jeda;
+  input.addEventListener('input', () => { clearTimeout(jeda); jeda = setTimeout(() => cek().catch(() => {}), 300); });
+  input.addEventListener('change', () => { clearTimeout(jeda); cek().catch(() => {}); });
+  return h('div', { class: 'isian-nomor' }, input, pesan);
+}
+
 // Barang yang boleh dipilih: yang aktif, ditambah barang yang sudah ada di dokumen yang diedit.
 export const barangPilihan = (daftar, rows = []) => {
   const ikut = new Set(rows.map((r) => r.barang_id));
