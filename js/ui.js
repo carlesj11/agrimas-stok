@@ -46,9 +46,17 @@ export function tabel(kolom, baris, kosong = 'Belum ada data.') {
         h('tr', {}, kolom.map((k) => h('td', { class: k.kelas, 'data-label': k.label }, k.isi(r))))))));
 }
 
-export function modal(judul, isi, { lebar = false } = {}) {
+// tutupLuar: klik di area gelap di luar kotak menutup modal. Form memakai false supaya isian
+// tidak hilang. Menarik scrollbar area gelap tidak pernah dianggap klik di luar.
+export function modal(judul, isi, { lebar = false, tutupLuar = true } = {}) {
   const tutup = () => latar.remove();
-  const latar = h('div', { class: 'modal-latar', onmousedown: (e) => { if (e.target === latar) tutup(); } },
+  let tekanDiLuar = false;
+  const diLuar = (e) => e.target === latar && e.clientX < latar.clientWidth && e.clientY < latar.clientHeight;
+  const latar = h('div', {
+    class: 'modal-latar',
+    onmousedown: (e) => { tekanDiLuar = diLuar(e); },
+    onclick: (e) => { if (tutupLuar && tekanDiLuar && diLuar(e)) tutup(); tekanDiLuar = false; },
+  },
     h('div', { class: lebar ? 'modal modal-lebar' : 'modal', role: 'dialog', 'aria-label': judul },
       h('div', { class: 'modal-kepala' },
         h('h2', {}, judul),
@@ -126,7 +134,7 @@ export function bukaForm({ judul, field, nilai = {}, onSimpan, labelSimpan = 'Si
     h('button', { class: 'tombol', type: 'button', onclick: () => tutup() }, 'Batal'),
     tombol));
 
-  tutup = modal(judul, form);
+  tutup = modal(judul, form, { tutupLuar: false });
   form.querySelector('input:not([readonly]),select,textarea')?.focus();
 }
 

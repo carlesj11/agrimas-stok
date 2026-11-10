@@ -231,7 +231,7 @@ export function formDokumen({ judul, badan, kumpulkan, simpan, labelSimpan = 'Si
     },
   }, badan, pesan, h('div', { class: 'form-aksi' },
     h('button', { class: 'tombol', type: 'button', onclick: () => tutup() }, 'Batal'), tombol));
-  tutup = modal(judul, form, { lebar: true });
+  tutup = modal(judul, form, { lebar: true, tutupLuar: false });
   return tutup;
 }
 
