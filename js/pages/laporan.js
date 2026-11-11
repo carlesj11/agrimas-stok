@@ -1,7 +1,7 @@
 import { sb, q } from '../db.js';
 import { state, pid } from '../state.js';
 import { h, tabel, toast, angka, rupiah } from '../ui.js';
-import { muatMaster, namaKode, opsi, pilihan, rpc, hariIni, awalBulan, tgl } from '../dokumen.js';
+import { muatMaster, namaKode, opsi, pilihan, pilihKetik, rpc, hariIni, awalBulan, tgl } from '../dokumen.js';
 
 const URL_XLSX = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
 
@@ -110,6 +110,30 @@ const labelTgl = (teks, el) => h('label', { class: 'saringan-tgl' }, teks, el);
 const inputTgl = (v) => h('input', { type: 'date', value: v });
 const teksPilihan = (sel) => sel.options[sel.selectedIndex]?.text ?? '';
 
+// Saringan yang bisa diketik (kode atau nama) atau dipilih dari daftar. Kosong = semua.
+// Laporan dimuat ulang begitu pilihan cocok dengan daftar atau isian dikosongkan.
+function saringKetik(daftarOpsi, { semua, label }) {
+  const p = pilihKetik(daftarOpsi, { placeholder: `${semua} (ketik untuk mencari)`, label });
+  const input = p.el.querySelector('input');
+  input.type = 'search';
+  input.setAttribute('aria-label', label);
+  p.el.className = 'saring-ketik';
+  let terakhir = '';
+  input.addEventListener('change', (e) => {
+    const teks = input.value.trim();
+    if (!input.checkValidity()) { e.stopImmediatePropagation(); input.reportValidity(); return; }
+    if (teks === terakhir) { e.stopImmediatePropagation(); return; }
+    terakhir = teks;
+  });
+  const kirim = () => input.dispatchEvent(new Event('change'));
+  input.addEventListener('input', () => { if (p.nilai() || !input.value.trim()) kirim(); });
+  return {
+    el: p.el,
+    get value() { return p.nilai(); },
+    teks: () => (p.nilai() ? input.value.trim() : semua),
+  };
+}
+
 // ===================================================================
 // Laporan Stok
 // ===================================================================
@@ -157,14 +181,14 @@ export async function halamanLaporanPenjualan(konten) {
     { value: 'barang', label: 'Rekap per barang' }]);
   const dari = inputTgl(awalBulan());
   const sampai = inputTgl(hariIni());
-  const customer = pilihan(opsi(m.customer, false), { kosong: 'Semua customer' });
+  const customer = saringKetik(opsi(m.customer, false), { semua: 'Semua customer', label: 'customer' });
   const sales = pilihan(opsi(m.sales, false), { kosong: 'Semua sales' });
 
   await kerangka(konten, {
     judul: 'Laporan Penjualan',
     deskripsi: 'Faktur penjualan aktif dalam periode. Rekap per barang sudah dikurangi retur.',
-    filter: [mode, labelTgl('Dari', dari), labelTgl('Sampai', sampai), customer, sales],
-    keteranganFilter: () => `${tgl(dari.value)} s/d ${tgl(sampai.value)} · ${teksPilihan(customer)} · ${teksPilihan(sales)}`,
+    filter: [mode, labelTgl('Dari', dari), labelTgl('Sampai', sampai), customer.el, sales],
+    keteranganFilter: () => `${tgl(dari.value)} s/d ${tgl(sampai.value)} · ${customer.teks()} · ${teksPilihan(sales)}`,
     muat: async () => {
       if (mode.value === 'barang') {
         const rows = await rpc('laporan_penjualan_barang', {

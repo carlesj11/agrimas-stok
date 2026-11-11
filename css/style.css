@@ -113,6 +113,7 @@ input[readonly] { background: var(--latar); }
 .saringan { display: flex; gap: 8px; margin-bottom: 8px; }
 .saringan input { max-width: 320px; }
 .saringan select { width: auto; }
+.saring-ketik input { width: 300px; }
 .info-jumlah { font-size: 0.85rem; color: var(--teks-lemah); margin: 4px 0 8px; }
 
 /* Tabel */
@@ -313,6 +314,7 @@ tbody tr:hover { background: #fafcfa; }
   .saringan-tgl input { flex: 1; }
   .baris-tambah { grid-template-columns: 1fr; }
   .saringan input { max-width: none; }
+  .saring-ketik, .saring-ketik input { width: 100%; }
   /* Tabel menjadi kartu */
   .tabel-wrap { background: none; border: none; }
   table, tbody, tr, td { display: block; }
