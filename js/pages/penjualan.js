@@ -287,7 +287,7 @@ async function formReturJual(ctx, fakturAwal, lama) {
       { label: 'Terjual', kelas: 'kanan', isi: (x) => `${angka(x.d.qty)} ${satuan(ctx, x.d.barang_id)}` },
       { label: 'Sudah diretur', kelas: 'kanan', isi: (x) => angka(x.sudah) },
       { label: 'Retur sekarang', kelas: 'kanan', isi: (x) => x.el },
-    ], input));
+    ], input, undefined, { urut: false }));
   };
 
   const { el: faktur, peta } = await pilihFaktur(fakturAwal, (f) => muat(f).catch((e) => toast(e.message, 'error')));

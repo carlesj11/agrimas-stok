@@ -135,7 +135,7 @@ async function barangSupplier(supplier) {
           }),
         },
         { label: '', kelas: 'kol-aksi', isi: (d) => isKelola() && h('button', { class: 'tombol tombol-kecil tombol-bahaya', onclick: () => lepas(d) }, 'Lepas') },
-      ], daftar, 'Belum ada barang yang dikaitkan ke supplier ini.'),
+      ], daftar, 'Belum ada barang yang dikaitkan ke supplier ini.', { urut: false }),
     );
   };
 

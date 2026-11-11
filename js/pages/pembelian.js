@@ -200,7 +200,7 @@ async function formSJMasuk(ctx, poAwal, lama) {
       { label: 'Dipesan', kelas: 'kanan', isi: (x) => `${angka(x.d.qty)} ${satuan(m, x.d.barang_id)}` },
       { label: lama ? 'Diterima di SJ lain' : 'Sudah diterima', kelas: 'kanan', isi: (x) => angka(x.sudah) },
       { label: 'Diterima sekarang', kelas: 'kanan', isi: (x) => x.el },
-    ], input, 'Semua barang di PO ini sudah diterima.'));
+    ], input, 'Semua barang di PO ini sudah diterima.', { urut: false }));
   };
 
   const po = pilihan(poTerbuka.map((p) => ({ value: p.id, label: `${p.nomor} · ${m.supplierMap[p.supplier_id]?.nama ?? ''}` })), {
@@ -347,7 +347,7 @@ async function formFakturBeli(ctx, lama) {
       { label: 'Disk Rp', kelas: 'kanan', isi: (b) => b.dn },
       { label: 'PPN %', kelas: 'kanan', isi: (b) => b.pp },
       { label: 'Subtotal', kelas: 'kanan', isi: (b) => b.subEl },
-    ], baris));
+    ], baris, undefined, { urut: false }));
     hitung();
   };
 
@@ -503,7 +503,7 @@ async function formReturBeli(ctx, sjAwal, lama) {
       { label: 'Diterima', kelas: 'kanan', isi: (x) => `${angka(x.d.qty)} ${satuan(m, x.d.barang_id)}` },
       { label: 'Sudah diretur', kelas: 'kanan', isi: (x) => angka(x.sudah) },
       { label: 'Retur sekarang', kelas: 'kanan', isi: (x) => x.el },
-    ], input));
+    ], input, undefined, { urut: false }));
   };
 
   const sj = pilihan(sjAktif.map((s) => ({ value: s.id, label: `${s.nomor} · ${m.supplierMap[s.supplier_id]?.nama ?? ''} · ${tgl(s.tanggal)}` })), {

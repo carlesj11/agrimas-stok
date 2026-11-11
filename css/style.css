@@ -121,6 +121,13 @@ table { width: 100%; border-collapse: collapse; }
 th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--garis); vertical-align: middle; }
 th { font-size: 0.8rem; font-weight: 600; color: var(--teks-lemah); background: #fafbfa; white-space: nowrap; }
 tbody tr:last-child td { border-bottom: none; }
+th.bisa-urut { cursor: pointer; user-select: none; }
+th.bisa-urut:hover, th.bisa-urut:focus-visible { color: var(--teks); }
+th.bisa-urut::after { content: '↕'; margin-left: 4px; opacity: 0.35; font-size: 0.75rem; }
+th.urut-naik::after { content: '▲'; opacity: 0.9; }
+th.urut-turun::after { content: '▼'; opacity: 0.9; }
+th.urut-naik, th.urut-turun { color: var(--utama-gelap); }
+.pilih-urut { display: none; }
 tbody tr:hover { background: #fafcfa; }
 .kanan { text-align: right; font-variant-numeric: tabular-nums; }
 .kol-aksi { text-align: right; width: 1%; }
@@ -259,7 +266,8 @@ tbody tr:hover { background: #fafcfa; }
 @media print {
   @page { margin: 12mm; }
   body { background: #fff; font-size: 12px; }
-  .menu, .atas, .saringan, .tanpa-cetak, .toast, .info-jumlah, .kepala-halaman { display: none !important; }
+  .menu, .atas, .saringan, .tanpa-cetak, .toast, .info-jumlah, .kepala-halaman, .pilih-urut { display: none !important; }
+  th.bisa-urut::after { content: none; }
   .shell { display: block; }
   .konten { padding: 0; }
   .cetak-kop { display: block; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #000; }
@@ -309,6 +317,7 @@ tbody tr:hover { background: #fafcfa; }
   .tabel-wrap { background: none; border: none; }
   table, tbody, tr, td { display: block; }
   thead { display: none; }
+  .pilih-urut { display: block; width: 100%; margin-bottom: 8px; }
   tr { background: var(--permukaan); border: 1px solid var(--garis); border-radius: var(--radius); margin-bottom: 8px; padding: 6px 0; }
   td { border: none; padding: 4px 12px; display: flex; justify-content: space-between; gap: 12px; text-align: right; }
   td::before { content: attr(data-label); color: var(--teks-lemah); font-size: 0.85rem; text-align: left; }

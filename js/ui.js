@@ -37,13 +37,83 @@ export function lencana(aktif) {
     aktif ? 'Aktif' : 'Nonaktif');
 }
 
-export function tabel(kolom, baris, kosong = 'Belum ada data.') {
+// Urutan tabel yang dipilih, diingat per halaman dan susunan kolom selama aplikasi terbuka.
+const urutanTabel = new Map();
+
+// Nilai pembanding dari isi sel: tanggal dd/mm/yyyy, angka format Indonesia (1.250.000,5 / Rp), atau teks.
+function nilaiUrut(teks) {
+  const t = teks.trim();
+  if (!t || t === '-') return null;
+  const tg = t.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (tg) return Number(tg[3] + tg[2] + tg[1]);
+  // Angka di awal sel, boleh diikuti satuan ("1.200 sak") atau diawali "Rp"
+  const m = t.match(/^(?:Rp\s*)?([-−]?(?:\d{1,3}(?:\.\d{3})+|\d+)(?:,\d+)?)\s*%?(?:\s+\S.*)?$/i);
+  if (m) return Number(m[1].replace('−', '-').replace(/\./g, '').replace(',', '.'));
+  return t;
+}
+
+function bandingkan(a, b) {
+  if (a === null || b === null) return a === b ? 0 : (a === null ? 1 : -1); // kosong selalu di bawah
+  if (typeof a === 'number' && typeof b === 'number') return a - b;
+  return String(a).localeCompare(String(b), 'id', { numeric: true, sensitivity: 'base' });
+}
+
+// Tabel daftar. Klik judul kolom untuk mengurutkan (naik, turun, lalu kembali ke urutan awal).
+// Kolom tanpa label atau kol-aksi tidak bisa diurutkan. urut: false mematikan pengurutan.
+export function tabel(kolom, baris, kosong = 'Belum ada data.', { urut = true } = {}) {
   if (!baris.length) return h('p', { class: 'kosong' }, kosong);
-  return h('div', { class: 'tabel-wrap' },
-    h('table', {},
-      h('thead', {}, h('tr', {}, kolom.map((k) => h('th', { class: k.kelas }, k.label)))),
-      h('tbody', {}, baris.map((r) =>
-        h('tr', {}, kolom.map((k) => h('td', { class: k.kelas, 'data-label': k.label }, k.isi(r))))))));
+  const bisaUrut = (k) => urut && baris.length > 1 && k.label && k.kelas !== 'kol-aksi';
+  const kunci = `${location.hash}|${kolom.map((k) => k.label).join('|')}`;
+  const barisTr = baris.map((r) =>
+    h('tr', {}, kolom.map((k) => h('td', { class: k.kelas, 'data-label': k.label }, k.isi(r)))));
+  const tbody = h('tbody', {}, barisTr);
+  const ths = kolom.map((k, i) => h('th', {
+    class: [k.kelas, bisaUrut(k) && 'bisa-urut'].filter(Boolean).join(' ') || null,
+    ...(bisaUrut(k) ? { tabindex: 0, title: 'Klik untuk mengurutkan', onclick: () => klik(i),
+      onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); klik(i); } } } : {}),
+  }, k.label));
+  const pilihUrut = baris.length > 1 && urut && h('select', {
+    class: 'pilih-urut', 'aria-label': 'Urutkan',
+    onchange: (e) => { const [i, arah] = e.target.value.split(':'); terapkan(i === '' ? null : { i: Number(i), arah }); },
+  }, h('option', { value: ':' }, 'Urutkan: urutan awal'),
+  kolom.flatMap((k, i) => (bisaUrut(k) ? [
+    h('option', { value: `${i}:naik` }, `${k.label} (A-Z / kecil-besar)`),
+    h('option', { value: `${i}:turun` }, `${k.label} (Z-A / besar-kecil)`)] : [])));
+
+  function terapkan(u) {
+    if (u) urutanTabel.set(kunci, u); else urutanTabel.delete(kunci);
+    let urutan = barisTr;
+    if (u && barisTr[0]?.children[u.i]) {
+      const nilai = new Map(barisTr.map((tr) => [tr, nilaiUrut(tr.children[u.i].textContent)]));
+      urutan = [...barisTr].sort((a, b) => {
+        const va = nilai.get(a), vb = nilai.get(b);
+        if (va === null || vb === null) return bandingkan(va, vb);
+        return u.arah === 'naik' ? bandingkan(va, vb) : bandingkan(vb, va);
+      });
+    }
+    tbody.replaceChildren(...urutan);
+    ths.forEach((th, i) => {
+      if (!th.classList.contains('bisa-urut')) return;
+      const aktif = u && u.i === i;
+      th.classList.toggle('urut-naik', !!aktif && u.arah === 'naik');
+      th.classList.toggle('urut-turun', !!aktif && u.arah === 'turun');
+      th.setAttribute('aria-sort', aktif ? (u.arah === 'naik' ? 'ascending' : 'descending') : 'none');
+    });
+    if (pilihUrut) pilihUrut.value = u ? `${u.i}:${u.arah}` : ':';
+  }
+  function klik(i) {
+    const u = urutanTabel.get(kunci);
+    if (!u || u.i !== i) terapkan({ i, arah: 'naik' });
+    else if (u.arah === 'naik') terapkan({ i, arah: 'turun' });
+    else terapkan(null);
+  }
+
+  const tabelWrap = h('div', { class: 'tabel-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, ths)), tbody));
+  if (!pilihUrut) return tabelWrap;
+  const wadah = h('div', { class: 'tabel-urut' }, pilihUrut, tabelWrap);
+  const tersimpan = urutanTabel.get(kunci);
+  if (tersimpan && bisaUrut(kolom[tersimpan.i] ?? {})) terapkan(tersimpan); else terapkan(null);
+  return wadah;
 }
 
 // tutupLuar: klik di area gelap di luar kotak menutup modal. Form memakai false supaya isian

@@ -170,7 +170,7 @@ export function bukaDetail({ judul, dok, info, kolom, baris, ringkasan = [], aks
       h('span', { class: 'tanpa-cetak' }, lencanaStatus(dok.status))),
     dok.status === 'batal' && h('p', { class: 'form-error' }, `Dibatalkan: ${dok.alasan_batal ?? ''}`),
     h('dl', { class: 'dokumen-info' }, info.filter(Boolean).flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v ?? '-')])),
-    tabel(kolom, baris),
+    tabel(kolom, baris, undefined, { urut: false }),
     ringkasan.length > 0 && h('dl', { class: 'dokumen-total' }, ringkasan.filter(Boolean).flatMap(([k, v, tebal]) =>
       [h('dt', { class: tebal ? 'tebal' : null }, k), h('dd', { class: tebal ? 'tebal' : null }, v)])),
     catatan && h('p', { class: 'catatan' }, catatan),

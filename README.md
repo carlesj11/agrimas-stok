@@ -91,6 +91,7 @@ supabase/*.sql          struktur database, dijalankan berurutan
 - Pembelian sementara mencatat barang dari mitra tanpa pembelian: stok bertambah, tetapi tidak masuk laporan pembelian. Bila barangnya kemudian dibeli resmi, catat pembeliannya lalu edit pembelian sementaranya. Laporan "Sisa Pembelian Sementara" menampilkan yang masih tercatat.
 - Nomor, keterangan, dan isian teks lain di semua dokumen disimpan dengan huruf kapital (trigger di database), walau diketik dengan huruf kecil.
 - Nomor dokumen tidak boleh dipakai dua kali dalam satu jenis dokumen (tidak membedakan huruf besar/kecil dan spasi di ujung, termasuk nomor dokumen yang sudah dibatalkan). Penomoran otomatis melewati nomor yang sudah dipakai, dan form Faktur Penjualan langsung memberi peringatan saat nomor yang diketik sudah ada.
+- Semua tabel daftar bisa diurutkan dengan klik judul kolom (naik, turun, lalu kembali ke urutan awal). Di HP tersedia pilihan "Urutkan" di atas daftar.
 - Laporan stok per tanggal menghitung qty dari kartu stok; nilai persediaannya memakai HPP rata-rata saat ini.
 
 ## Cetakan faktur penjualan
