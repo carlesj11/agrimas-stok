@@ -313,14 +313,14 @@ function laporanDetailPenjualan(faktur, detail, m) {
 
 export async function halamanLaporanPembelian(konten) {
   const m = await muatMaster('supplier');
-  const mode = pilihan([{ value: 'faktur', label: 'Per faktur supplier' }, { value: 'barang', label: 'Rekap barang diterima' }]);
+  const mode = pilihan([{ value: 'faktur', label: 'Per faktur supplier' }, { value: 'barang', label: 'Rekap per barang' }]);
   const dari = inputTgl(awalBulan());
   const sampai = inputTgl(hariIni());
   const supplier = pilihan(opsi(m.supplier, false), { kosong: 'Semua supplier' });
 
   await kerangka(konten, {
     judul: 'Laporan Pembelian',
-    deskripsi: 'Faktur supplier dalam periode, atau rekap barang yang diterima lewat surat jalan.',
+    deskripsi: 'Faktur supplier dalam periode, atau rekap barang yang dibeli per barang.',
     filter: [mode, labelTgl('Dari', dari), labelTgl('Sampai', sampai), supplier],
     keteranganFilter: () => `${tgl(dari.value)} s/d ${tgl(sampai.value)} · ${teksPilihan(supplier)}`,
     muat: async () => {
@@ -332,9 +332,9 @@ export async function halamanLaporanPembelian(konten) {
             { label: 'Kode', nilai: (r) => r.kode },
             { label: 'Nama Barang', nilai: (r) => r.nama },
             { label: 'Satuan', nilai: (r) => r.satuan },
-            { label: 'Qty Diterima', jenis: 'qty', nilai: (r) => Number(r.qty_diterima) },
+            { label: 'Qty Dibeli', jenis: 'qty', nilai: (r) => Number(r.qty_diterima) },
             { label: 'Qty Retur', jenis: 'qty', nilai: (r) => Number(r.qty_retur) },
-            { label: 'Nilai Diterima', jenis: 'rp', nilai: (r) => Number(r.nilai_diterima), jumlah: true },
+            { label: 'Nilai Dibeli', jenis: 'rp', nilai: (r) => Number(r.nilai_diterima), jumlah: true },
             { label: 'Nilai Retur', jenis: 'rp', nilai: (r) => Number(r.nilai_retur), jumlah: true },
           ],
         };

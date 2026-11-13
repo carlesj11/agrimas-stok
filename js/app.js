@@ -25,11 +25,13 @@ const MENU = [
   },
   {
     grup: 'Pembelian', item: [
-      { rute: 'po', label: 'Purchase Order', render: halamanPO },
-      { rute: 'sj-masuk', label: 'Surat Jalan Masuk', render: halamanSJMasuk },
       { rute: 'faktur-supplier', label: 'Faktur Supplier', render: halamanFakturBeli },
       { rute: 'retur-pembelian', label: 'Retur Pembelian', render: halamanReturBeli },
       { rute: 'pembelian-sementara', label: 'Pembelian Sementara', render: halamanPembelianSementara },
+      // Pembelian sekarang langsung lewat faktur supplier. PO dan surat jalan masuk tidak tampil di menu,
+      // tetapi halamannya tetap bisa dibuka lewat alamatnya untuk melihat data lama.
+      { rute: 'po', label: 'Purchase Order', render: halamanPO, sembunyi: true },
+      { rute: 'sj-masuk', label: 'Surat Jalan Masuk', render: halamanSJMasuk, sembunyi: true },
     ],
   },
   {
@@ -51,8 +53,8 @@ const MENU = [
       { rute: 'laporan-stok', label: 'Laporan Stok', render: halamanLaporanStok },
       { rute: 'laporan-penjualan', label: 'Laporan Penjualan', render: halamanLaporanPenjualan },
       { rute: 'laporan-pembelian', label: 'Laporan Pembelian', render: halamanLaporanPembelian },
-      { rute: 'laporan-po', label: 'PO Belum Terpenuhi', render: halamanLaporanPO },
       { rute: 'laporan-sementara', label: 'Sisa Pembelian Sementara', render: halamanLaporanSementara },
+      { rute: 'laporan-po', label: 'PO Belum Terpenuhi', render: halamanLaporanPO, sembunyi: true },
     ],
   },
   {
@@ -159,7 +161,7 @@ function layarAplikasi() {
       menuAkun));
 
   nav.append(...MENU.map((g) => {
-    const item = g.item.filter((i) => !i.syarat || i.syarat());
+    const item = g.item.filter((i) => !i.sembunyi && (!i.syarat || i.syarat()));
     if (!item.length) return '';
     const tautan = item.map((i) => h('a', { class: 'menu-item', href: `#/${i.rute}`, 'data-rute': i.rute }, i.label));
     if (!g.grup) return tautan;

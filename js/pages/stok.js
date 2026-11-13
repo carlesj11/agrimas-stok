@@ -10,7 +10,7 @@ const satuan = (m, id) => m.barangMap[id]?.satuan ?? '';
 const namaBarang = (m, id) => namaKode(m.barangMap[id]);
 
 const NAMA_JENIS = {
-  AWAL: 'Saldo awal', SJM: 'Surat jalan masuk', FJ: 'Faktur penjualan', RJ: 'Retur penjualan',
+  AWAL: 'Saldo awal', FB: 'Faktur supplier', SJM: 'Surat jalan masuk', FJ: 'Faktur penjualan', RJ: 'Retur penjualan',
   RB: 'Retur pembelian', PS: 'Penyesuaian', TG: 'Pindah gudang', PBS: 'Pembelian sementara', BATAL: 'Pembatalan',
 };
 

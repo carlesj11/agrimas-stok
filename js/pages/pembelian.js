@@ -2,8 +2,8 @@ import { sb, q } from '../db.js';
 import { pid, isKelola } from '../state.js';
 import { h, tabel, toast, angka, rupiah, konfirmasi } from '../ui.js';
 import {
-  halamanDaftar, bukaDetail, aksiKelola, formDokumen, isian, pilihan, editorBaris, kotakTotal, muatMaster,
-  namaKode, opsi, rpc, hariIni, tambahHari, tgl, hitungBaris, cekTanpaLanjutan,
+  halamanDaftar, bukaDetail, aksiKelola, formDokumen, isian, pilihan, pilihKetik, editorBaris, kotakTotal, muatMaster,
+  namaKode, opsi, rpc, hariIni, tambahHari, tgl, hitungBaris, cekTanpaLanjutan, cekNomorGanda, barangPilihan,
 } from '../dokumen.js';
 
 const satuan = (m, id) => m.barangMap[id]?.satuan ?? '';
@@ -255,7 +255,7 @@ async function detailSJ(dok, ctx) {
     ],
     baris,
     aksi: [
-      dok.status === 'aktif' && h('button', { class: 'tombol', onclick: () => { tutup(); formReturBeli(ctx, dok.id); } }, 'Retur ke Supplier'),
+      dok.status === 'aktif' && h('button', { class: 'tombol', onclick: () => { tutup(); formReturBeliSJ(ctx, dok.id); } }, 'Retur ke Supplier'),
       ...aksiKelola('surat_jalan_masuk', dok, {
         tutupDetail: () => tutup(), muatUlang: ctx.muatUlang,
         edit: async () => {
@@ -288,8 +288,8 @@ export const halamanSJMasuk = halamanDaftar({
 // Faktur Supplier
 // ===================================================================
 
-// `lama`: faktur supplier yang diedit (tanpa itu, form membuat faktur baru).
-async function formFakturBeli(ctx, lama) {
+// Faktur lama yang ditagihkan dari surat jalan masuk (sebelum pembelian langsung). Hanya untuk edit data lama.
+async function formFakturBeliSJ(ctx, lama) {
   // Harga, diskon, dan PPN faktur lama per baris surat jalan, untuk mengisi form edit.
   const hargaLama = lama
     ? Object.fromEntries((await q(sb.from('faktur_pembelian_detail').select('*').eq('faktur_id', lama.id))).map((r) => [r.sj_detail_id, r]))
@@ -405,10 +405,71 @@ async function formFakturBeli(ctx, lama) {
   });
 }
 
+// Faktur supplier langsung: barang masuk ke gudang saat faktur disimpan, tanpa PO dan surat jalan.
+// `lama`: faktur yang diedit (tanpa itu, form membuat faktur baru).
+async function formFakturBeli(ctx, lama) {
+  if (lama && !lama.gudang_id) return formFakturBeliSJ(ctx, lama);
+  if (!ctx.gudang.some((g) => g.aktif) && !lama) { toast('Buat gudang dulu di menu Gudang.', 'error'); return; }
+  const rowsLama = lama ? await q(sb.from('faktur_pembelian_detail').select('*').eq('faktur_id', lama.id).order('urutan')) : [];
+  const hargaSupplier = Object.fromEntries((await q(sb.from('barang_supplier').select('*').eq('perusahaan_id', pid())))
+    .map((r) => [`${r.supplier_id}|${r.barang_id}`, Number(r.harga_beli)]));
+  const supplier = pilihKetik(opsi(ctx.supplier, true, lama?.supplier_id), { placeholder: 'Ketik kode atau nama supplier…', wajib: true, label: 'supplier' });
+  const total = kotakTotal();
+  const editor = editorBaris({
+    barang: barangPilihan(ctx.barang, rowsLama),
+    hargaAwal: (b) => hargaSupplier[`${supplier.nilai()}|${b.id}`] || Number(b.harga_beli) || 0,
+    infoBarang: (b) => `Satuan ${b.satuan}`,
+    onUbah: (sub) => total.setSubtotal(sub),
+  });
+  const gudang = pilihan(opsi(ctx.gudang, true, lama?.gudang_id), { wajib: true, nilai: lama?.gudang_id ?? '' });
+  const tanggal = h('input', { type: 'date', value: lama?.tanggal ?? hariIni(), required: true });
+  const jatuhTempo = h('input', { type: 'date', value: lama?.jatuh_tempo ?? tambahHari(hariIni(), 30), required: true });
+  tanggal.addEventListener('change', () => { jatuhTempo.value = tambahHari(tanggal.value, 30); });
+  const nomor = h('input', { required: true, placeholder: 'Nomor faktur dari supplier', value: lama?.nomor ?? '' });
+  const ket = h('textarea', { rows: 2 }, lama?.keterangan ?? '');
+  if (lama) {
+    supplier.setNilai(lama.supplier_id);
+    editor.isi(rowsLama);
+    total.isi(lama);
+  }
+
+  formDokumen({
+    judul: lama ? `Edit Faktur Supplier ${lama.nomor}` : 'Faktur Supplier Baru',
+    badan: h('div', {},
+      h('div', { class: 'form-grid form-grid-3' },
+        isian('Supplier', supplier.el, { wajib: true }),
+        isian('No. Faktur Supplier', cekNomorGanda(nomor, 'faktur_pembelian', lama?.id), { wajib: true }),
+        isian('Barang masuk ke', gudang, { wajib: true }),
+        isian('Tanggal Faktur', tanggal, { wajib: true }),
+        isian('Jatuh Tempo', jatuhTempo, { wajib: true, hint: 'Otomatis 30 hari dari tanggal faktur.' }),
+        isian('Keterangan', ket)),
+      h('h3', {}, 'Barang'),
+      editor.el,
+      total.el,
+      h('p', { class: 'catatan' }, 'Stok gudang langsung bertambah saat faktur disimpan. HPP dihitung dari harga setelah diskon, tanpa PPN.')),
+    kumpulkan: () => {
+      if (!supplier.nilai()) throw new Error('Pilih supplier dari daftar yang muncul saat mengetik.');
+      return {
+        id: lama?.id, perusahaan_id: pid(), supplier_id: supplier.nilai(), gudang_id: gudang.value, nomor: nomor.value,
+        tanggal: tanggal.value, jatuh_tempo: jatuhTempo.value, keterangan: ket.value || null, ...total.nilai(),
+        baris: editor.ambil(),
+      };
+    },
+    simpan: async (p) => {
+      const id = await rpc('simpan_faktur_pembelian', { p });
+      toast(lama ? 'Perubahan faktur supplier tersimpan. Stok sudah disesuaikan.' : 'Faktur supplier tersimpan. Stok sudah bertambah.');
+      await ctx.muatUlang();
+      const dok = await q(sb.from('faktur_pembelian').select('*').eq('id', id).single());
+      detailFakturBeli(dok, ctx);
+    },
+  });
+}
+
 async function detailFakturBeli(dok, ctx) {
+  const langsung = !!dok.gudang_id;
   const [baris, sj] = await Promise.all([
-    q(sb.from('faktur_pembelian_detail').select('*').eq('faktur_id', dok.id)),
-    q(sb.from('surat_jalan_masuk').select('nomor').eq('faktur_id', dok.id)),
+    q(sb.from('faktur_pembelian_detail').select('*').eq('faktur_id', dok.id).order('urutan')),
+    langsung ? [] : q(sb.from('surat_jalan_masuk').select('nomor').eq('faktur_id', dok.id)),
   ]);
   const tutup = bukaDetail({
     judul: 'Faktur Supplier',
@@ -417,7 +478,7 @@ async function detailFakturBeli(dok, ctx) {
       ['Supplier', namaKode(ctx.supplierMap[dok.supplier_id])],
       ['Tanggal', tgl(dok.tanggal)],
       ['Jatuh tempo', tgl(dok.jatuh_tempo)],
-      ['Surat jalan', sj.map((s) => s.nomor).join(', ') || '-'],
+      langsung ? ['Gudang', namaKode(ctx.gudangMap[dok.gudang_id])] : ['Surat jalan', sj.map((s) => s.nomor).join(', ') || '-'],
       ['Keterangan', dok.keterangan],
     ],
     kolom: [
@@ -435,24 +496,35 @@ async function detailFakturBeli(dok, ctx) {
       Number(dok.ppn_total) && ['PPN', rupiah(dok.ppn_total)],
       ['Total', rupiah(dok.total), true],
     ],
-    aksi: aksiKelola('faktur_pembelian', dok, {
-      tutupDetail: () => tutup(), muatUlang: ctx.muatUlang, jatuhTempo: true, edit: () => formFakturBeli(ctx, dok),
-    }),
+    aksi: [
+      langsung && dok.status === 'aktif' && h('button', { class: 'tombol', onclick: () => { tutup(); formReturBeli(ctx, dok.id); } }, 'Retur ke Supplier'),
+      ...aksiKelola('faktur_pembelian', dok, {
+        tutupDetail: () => tutup(), muatUlang: ctx.muatUlang, jatuhTempo: true,
+        edit: async () => {
+          if (langsung) {
+            await cekTanpaLanjutan('retur_pembelian', 'faktur_id', dok.id,
+              'Faktur ini punya retur pembelian. Batalkan returnya dulu sebelum mengedit faktur.');
+          }
+          await formFakturBeli(ctx, dok);
+        },
+      }),
+    ],
   });
 }
 
 export const halamanFakturBeli = halamanDaftar({
   judul: 'Faktur Supplier',
-  deskripsi: 'Tagihan dari supplier atas barang yang sudah diterima. Perhitungan hutang menyusul di tahap keuangan.',
+  deskripsi: 'Pembelian dari supplier. Stok gudang langsung bertambah saat faktur disimpan. Perhitungan hutang menyusul di tahap keuangan.',
   tabel: 'faktur_pembelian',
-  siapkan: () => muatMaster('supplier', 'barang'),
+  siapkan: () => muatMaster('supplier', 'barang', 'gudang'),
   cari: (r, m) => [m.supplierMap[r.supplier_id]?.nama],
   kolom: [
     { label: 'Supplier', isi: (r, m) => m.supplierMap[r.supplier_id]?.nama ?? '-' },
+    { label: 'Gudang', isi: (r, m) => m.gudangMap[r.gudang_id]?.nama ?? '-' },
     { label: 'Jatuh Tempo', isi: (r) => tgl(r.jatuh_tempo) },
     { label: 'Total', kelas: 'kanan', isi: (r) => rupiah(r.total) },
   ],
-  tombolBuat: { label: '+ Faktur Supplier', aksi: formFakturBeli },
+  tombolBuat: { label: '+ Faktur Supplier', aksi: (ctx) => formFakturBeli(ctx) },
   bukaDetail: detailFakturBeli,
 });
 
@@ -460,8 +532,8 @@ export const halamanFakturBeli = halamanDaftar({
 // Retur Pembelian
 // ===================================================================
 
-// `lama`: retur yang diedit (tanpa itu, form membuat retur baru).
-async function formReturBeli(ctx, sjAwal, lama) {
+// Retur lama dari surat jalan masuk (sebelum pembelian langsung).
+async function formReturBeliSJ(ctx, sjAwal, lama) {
   const m = ctx.poMap ? ctx : { ...(await siapkanSJ()), muatUlang: ctx.muatUlang };
   if (lama) sjAwal = lama.sj_id;
   const tanggal = h('input', { type: 'date', value: lama?.tanggal ?? hariIni(), required: true });
@@ -535,15 +607,100 @@ async function formReturBeli(ctx, sjAwal, lama) {
   });
 }
 
+// Retur pembelian dari faktur supplier langsung. `lama`: retur yang diedit.
+async function formReturBeli(ctx, fakturAwal, lama) {
+  if (lama?.sj_id) return formReturBeliSJ(ctx, null, lama);
+  if (lama) fakturAwal = lama.faktur_id;
+  const tanggal = h('input', { type: 'date', value: lama?.tanggal ?? hariIni(), required: true });
+  const ket = h('textarea', { rows: 2, placeholder: 'Alasan retur' }, lama?.keterangan ?? '');
+  const wadah = h('div');
+  let input = [];
+  const qtyLama = {};
+  if (lama) {
+    for (const r of await q(sb.from('retur_pembelian_detail').select('fb_detail_id,qty').eq('retur_id', lama.id))) {
+      qtyLama[r.fb_detail_id] = (qtyLama[r.fb_detail_id] ?? 0) + Number(r.qty);
+    }
+  }
+
+  const kolomFB = 'id,nomor,tanggal,supplier_id,gudang_id';
+  const fbAktif = await q(sb.from('faktur_pembelian').select(kolomFB).eq('perusahaan_id', pid())
+    .eq('status', 'aktif').not('gudang_id', 'is', null).order('tanggal', { ascending: false }).limit(500));
+  if (fakturAwal && !fbAktif.some((x) => x.id === fakturAwal)) fbAktif.push(...await q(sb.from('faktur_pembelian').select(kolomFB).eq('id', fakturAwal)));
+
+  const muatFaktur = async (fbId) => {
+    input = [];
+    if (!fbId) { wadah.replaceChildren(); return; }
+    const milikLama = lama && fbId === lama.faktur_id;
+    const [fd, retur] = await Promise.all([
+      q(sb.from('faktur_pembelian_detail').select('*').eq('faktur_id', fbId).order('urutan')),
+      q(sb.from('retur_pembelian').select('id').eq('faktur_id', fbId).eq('status', 'aktif').neq('id', lama?.id ?? '00000000-0000-0000-0000-000000000000')),
+    ]);
+    const rd = retur.length ? await q(sb.from('retur_pembelian_detail').select('fb_detail_id,qty').in('retur_id', retur.map((r) => r.id))) : [];
+    const sudah = {};
+    for (const r of rd) sudah[r.fb_detail_id] = (sudah[r.fb_detail_id] ?? 0) + Number(r.qty);
+    input = fd.map((d) => ({
+      d, sudah: sudah[d.id] ?? 0,
+      el: h('input', {
+        type: 'number', min: 0, max: Number(d.qty) - (sudah[d.id] ?? 0), step: 'any', class: 'input-angka', 'aria-label': 'Qty retur',
+        value: milikLama && qtyLama[d.id] ? qtyLama[d.id] : null,
+      }),
+    }));
+    wadah.replaceChildren(tabel([
+      { label: 'Barang', isi: (x) => namaBarang(ctx, x.d.barang_id) },
+      { label: 'Dibeli', kelas: 'kanan', isi: (x) => `${angka(x.d.qty)} ${satuan(ctx, x.d.barang_id)}` },
+      { label: 'Sudah diretur', kelas: 'kanan', isi: (x) => angka(x.sudah) },
+      { label: 'Retur sekarang', kelas: 'kanan', isi: (x) => x.el },
+    ], input, undefined, { urut: false }));
+  };
+
+  const faktur = pilihKetik(fbAktif.map((f) => ({ value: f.id, label: `${f.nomor} · ${ctx.supplierMap[f.supplier_id]?.nama ?? ''} · ${tgl(f.tanggal)}` })), {
+    placeholder: 'Ketik nomor faktur atau nama supplier…', wajib: true, label: 'faktur supplier',
+  });
+  let fbDimuat = '';
+  const gantiFaktur = () => {
+    if (faktur.nilai() === fbDimuat) return;
+    fbDimuat = faktur.nilai();
+    muatFaktur(fbDimuat).catch((e) => toast(e.message, 'error'));
+  };
+  faktur.el.querySelector('input').addEventListener('input', gantiFaktur);
+  faktur.el.querySelector('input').addEventListener('change', gantiFaktur);
+  if (fakturAwal) { faktur.setNilai(fakturAwal); fbDimuat = fakturAwal; await muatFaktur(fakturAwal); }
+
+  formDokumen({
+    judul: lama ? `Edit Retur ${lama.nomor}` : 'Retur Pembelian',
+    badan: h('div', {},
+      h('div', { class: 'form-grid form-grid-3' },
+        isian('Faktur Supplier', faktur.el, { wajib: true }),
+        isian('Tanggal Retur', tanggal, { wajib: true }),
+        isian('Keterangan', ket, { penuh: true })),
+      h('h3', {}, 'Barang yang dikembalikan'),
+      wadah,
+      h('p', { class: 'catatan' }, 'Barang keluar dari gudang tempat faktur supplier menerima barang.')),
+    kumpulkan: () => {
+      if (!faktur.nilai()) throw new Error('Pilih faktur supplier dari daftar yang muncul saat mengetik.');
+      const baris = input.map((x) => ({ fb_detail_id: x.d.id, qty: Number(x.el.value || 0) })).filter((b) => b.qty > 0);
+      if (!baris.length) throw new Error('Isi qty retur minimal untuk satu barang.');
+      return { id: lama?.id, perusahaan_id: pid(), faktur_id: faktur.nilai(), tanggal: tanggal.value, keterangan: ket.value || null, baris };
+    },
+    simpan: async (p) => {
+      await rpc('simpan_retur_pembelian', { p });
+      toast(lama ? 'Perubahan retur tersimpan. Stok sudah disesuaikan.' : 'Retur pembelian tersimpan. Stok sudah dikurangi.');
+      await ctx.muatUlang?.();
+    },
+  });
+}
+
 async function detailReturBeli(dok, ctx) {
   const baris = await q(sb.from('retur_pembelian_detail').select('*').eq('retur_id', dok.id));
-  const sj = await q(sb.from('surat_jalan_masuk').select('nomor').eq('id', dok.sj_id).maybeSingle());
+  const asal = dok.faktur_id
+    ? await q(sb.from('faktur_pembelian').select('nomor').eq('id', dok.faktur_id).maybeSingle())
+    : await q(sb.from('surat_jalan_masuk').select('nomor').eq('id', dok.sj_id).maybeSingle());
   const tutup = bukaDetail({
     judul: 'Retur Pembelian',
     dok,
     info: [
       ['Supplier', namaKode(ctx.supplierMap[dok.supplier_id])],
-      ['Surat jalan', sj?.nomor],
+      [dok.faktur_id ? 'Faktur supplier' : 'Surat jalan', asal?.nomor],
       ['Tanggal', tgl(dok.tanggal)],
       ['Gudang', namaKode(ctx.gudangMap[dok.gudang_id])],
       ['Keterangan', dok.keterangan],
@@ -563,9 +720,9 @@ async function detailReturBeli(dok, ctx) {
 
 export const halamanReturBeli = halamanDaftar({
   judul: 'Retur Pembelian',
-  deskripsi: 'Barang yang dikembalikan ke supplier. Stok berkurang dari gudang penerima.',
+  deskripsi: 'Barang yang dikembalikan ke supplier, dipilih dari faktur supplier. Stok berkurang dari gudang penerima.',
   tabel: 'retur_pembelian',
-  siapkan: siapkanSJ,
+  siapkan: () => muatMaster('supplier', 'barang', 'gudang'),
   cari: (r, m) => [m.supplierMap[r.supplier_id]?.nama],
   kolom: [
     { label: 'Supplier', isi: (r, m) => m.supplierMap[r.supplier_id]?.nama ?? '-' },
